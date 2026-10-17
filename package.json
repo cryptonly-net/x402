@@ -1,6 +1,6 @@
 {
   "name": "@cryptonly/x402",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Cryptonly facilitator client for the x402 payment protocol.",
   "license": "MIT",
   "private": false,
@@ -17,6 +17,14 @@
   "bugs": {
     "url": "https://github.com/cryptonly-net/x402/issues"
   },
+  "keywords": [
+    "cryptonly",
+    "x402",
+    "facilitator",
+    "payments",
+    "client",
+    "typescript"
+  ],
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {

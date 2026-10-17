@@ -1,3 +1,9 @@
 dist
+build
 node_modules
 .npmrc
+__pycache__/
+.venv/
+*.egg-info/
+.pytest_cache/
+*.pyc

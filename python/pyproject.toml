@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cryptonly-x402"
+version = "0.1.0"
+description = "Cryptonly facilitator client for the x402 payment protocol."
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.10"
+keywords = ["cryptonly", "x402", "facilitator", "payments", "client", "python"]
+authors = [{ name = "Cryptonly", email = "noreply@cryptonly.net" }]
+dependencies = ["x402>=2"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Operating System :: OS Independent",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
+[project.urls]
+Homepage = "https://github.com/cryptonly-net/x402/tree/main/python"
+Documentation = "https://cryptonly.gitbook.io/docs"
+Repository = "https://github.com/cryptonly-net/x402"
+Issues = "https://github.com/cryptonly-net/x402/issues"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+cryptonly_x402 = ["py.typed"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

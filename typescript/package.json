@@ -11,7 +11,8 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/cryptonly-net/x402.git"
+    "url": "git+https://github.com/cryptonly-net/x402.git",
+    "directory": "typescript"
   },
   "homepage": "https://github.com/cryptonly-net/x402#readme",
   "bugs": {

@@ -9,12 +9,16 @@ permissions:
   id-token: write
 
 concurrency:
-  group: npm-publish
+  group: publish-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
-  publish:
+  npm:
+    if: startsWith(github.ref_name, 'typescript-v')
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: typescript
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v6
@@ -27,9 +31,35 @@ jobs:
       - name: Check tag matches package version
         run: |
           version=$(node -p "require('./package.json').version")
-          tag="${GITHUB_REF_NAME#v}"
+          tag="${GITHUB_REF_NAME#typescript-v}"
           if [ "$version" != "$tag" ]; then
             echo "package.json version $version does not match tag $GITHUB_REF_NAME"
             exit 1
           fi
       - run: npm publish --access public
+
+  pypi:
+    if: startsWith(github.ref_name, 'python-v')
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: python
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e ".[dev]" build
+      - run: pytest
+      - name: Check tag matches package version
+        run: |
+          version=$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
+          tag="${GITHUB_REF_NAME#python-v}"
+          if [ "$version" != "$tag" ]; then
+            echo "pyproject.toml version $version does not match tag $GITHUB_REF_NAME"
+            exit 1
+          fi
+      - run: python -m build
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: python/dist

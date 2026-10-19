@@ -1,6 +1,6 @@
 {
   "name": "@cryptonly/x402",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Cryptonly facilitator client for the x402 payment protocol.",
   "license": "MIT",
   "private": false,

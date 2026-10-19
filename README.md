@@ -6,7 +6,7 @@
 
 Facilitator clients for x402 payments.
 
-[Website](https://cryptonly.net) · [Documentation](https://cryptonly.gitbook.io/docs) · [Contact](https://cryptonly.net/contact/)
+[Website](https://cryptonly.net) · [Documentation](https://docs.cryptonly.net/api-reference/openapi/operations/x402supported/) · [Contact](https://cryptonly.net/contact/)
 
 </div>
 

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cryptonly-x402"
-version = "0.1.0"
+version = "0.1.1"
 description = "Cryptonly facilitator client for the x402 payment protocol."
 readme = "README.md"
 license = "MIT"
@@ -22,7 +22,7 @@ dev = ["pytest>=8"]
 
 [project.urls]
 Homepage = "https://github.com/cryptonly-net/x402/tree/main/python"
-Documentation = "https://cryptonly.gitbook.io/docs"
+Documentation = "https://docs.cryptonly.net/api-reference/openapi/operations/x402supported/"
 Repository = "https://github.com/cryptonly-net/x402"
 Issues = "https://github.com/cryptonly-net/x402/issues"
 

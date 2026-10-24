@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.0
+
+No code changes. The first release published from CI, with npm provenance.
+
 ## 0.5.0
 
 **Breaking:** the Express middleware moved to its own package.

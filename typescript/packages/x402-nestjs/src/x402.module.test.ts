@@ -15,7 +15,13 @@ import { NestFactory } from '@nestjs/core';
 import { FastifyAdapter } from '@nestjs/platform-fastify';
 import { IsString, Matches } from 'class-validator';
 import type { X402Config } from '@cryptonly/x402';
-import { PAY_TO, resource, x402Config } from '../../x402/src/config.fixture.js';
+import {
+  PAY_TO,
+  PERMIT2_TOKEN,
+  USDC,
+  resource,
+  x402Config,
+} from '../../x402/src/config.fixture.js';
 import {
   FACILITATOR_BASE_URL,
   PAYER,
@@ -39,7 +45,12 @@ class AmlController {
   @Get('screen/:address')
   screen(@Param('address') address: string, @X402Payment() payment: X402VerifiedPayment) {
     if (address === 'boom') throw new Error('provider down');
-    return { address, sanctioned: false, payer: payment.payer, amount: payment.amount };
+    return {
+      address,
+      sanctioned: false,
+      payer: payment.payer,
+      amount: payment.amount,
+    };
   }
 
   @X402()
@@ -55,7 +66,12 @@ class AmlController {
   }
 
   @X402({
-    accepts: { scheme: 'exact', price: '$0.01', network: 'eip155:84532', payTo: PAY_TO },
+    accepts: {
+      scheme: 'exact',
+      price: '$0.01',
+      network: 'eip155:84532',
+      payTo: PAY_TO,
+    },
     description: 'Priced in code',
   })
   @Get('in-code')
@@ -72,7 +88,14 @@ class AmlController {
 // Dashboard paths carry the global prefix; handlers don't.
 const config: X402Config = x402Config({
   resources: [
-    resource({ method: 'GET', path: '/api/aml/screen/:address' }),
+    resource({
+      method: 'GET',
+      path: '/api/aml/screen/:address',
+      prices: [
+        { amount: '1000', asset: USDC, currencyCode: 'USDC_BASE' },
+        { amount: '5', asset: PERMIT2_TOKEN, currencyCode: 'TKN_BASE' },
+      ],
+    }),
     resource({ method: 'POST', path: '/api/aml/screen' }),
     resource({ method: 'GET', path: '/api/aml/undecorated' }),
   ],
@@ -103,7 +126,9 @@ type Platform = 'express' | 'fastify';
 async function start(module: unknown, platform: Platform): Promise<INestApplication> {
   const app =
     platform === 'fastify'
-      ? await NestFactory.create(module as never, new FastifyAdapter(), { logger: false })
+      ? await NestFactory.create(module as never, new FastifyAdapter(), {
+          logger: false,
+        })
       : await NestFactory.create(module as never, { logger: false });
   app.setGlobalPrefix('api');
   app.useGlobalPipes(new ValidationPipe());
@@ -143,13 +168,16 @@ describe.each<Platform>(['express', 'fastify'])('X402Module on %s', (platform) =
     calls.settled.length = 0;
   });
 
-  async function pay(path: string, init: RequestInit = {}) {
+  async function pay(path: string, init: RequestInit = {}, option = 0) {
     const unpaid = await realFetch(`${base}${path}`, init);
     expect(unpaid.status).toBe(402);
     const required = unpaid.headers.get('payment-required')!;
     const paid = await realFetch(`${base}${path}`, {
       ...init,
-      headers: { ...(init.headers as Record<string, string>), 'payment-signature': paymentFor(required) },
+      headers: {
+        ...(init.headers as Record<string, string>),
+        'payment-signature': paymentFor(required, option),
+      },
     });
     return { required: decodeHeader(required), paid };
   }
@@ -183,6 +211,23 @@ describe.each<Platform>(['express', 'fastify'])('X402Module on %s', (platform) =
     expect(calls.settled).toHaveLength(1);
   });
 
+  it('offers every dashboard price and settles the one the buyer picked', async () => {
+    const { required, paid } = await pay('/api/aml/screen/0xabc', {}, 1);
+    expect(required.accepts).toEqual([
+      expect.objectContaining({ asset: USDC, amount: '1000' }),
+      expect.objectContaining({ asset: PERMIT2_TOKEN, amount: '5' }),
+    ]);
+    expect(paid.status).toBe(200);
+    expect(await paid.json()).toMatchObject({ amount: '5' });
+    expect(calls.settled).toEqual([
+      expect.objectContaining({
+        paymentRequirements: expect.objectContaining({
+          asset: PERMIT2_TOKEN,
+        }),
+      }),
+    ]);
+  });
+
   it('does not settle when the handler throws', async () => {
     const { paid } = await pay('/api/aml/screen/boom');
     expect(paid.status).toBe(500);
@@ -191,7 +236,10 @@ describe.each<Platform>(['express', 'fastify'])('X402Module on %s', (platform) =
   });
 
   it('does not settle when validation rejects the body', async () => {
-    const json = { method: 'POST', headers: { 'content-type': 'application/json' } };
+    const json = {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+    };
     const bad = await pay('/api/aml/screen', { ...json, body: JSON.stringify({ address: 'nope' }) });
     expect(bad.paid.status).toBe(400);
     expect(calls.settled).toHaveLength(0);

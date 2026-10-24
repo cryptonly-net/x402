@@ -20,6 +20,7 @@ export type {
   X402Config,
   X402ConfigAsset,
   X402ConfigErrorCode,
+  X402ConfigPrice,
   X402ConfigResource,
   X402ExtensionsModule,
 } from './config.js';
@@ -40,6 +41,7 @@ export {
   defaultEvmSchemes,
   defaultSvmSchemes,
   describeError,
+  evmNetworksOf,
   solanaNetworksOf,
 } from './route-source.js';
 export type {

@@ -34,6 +34,17 @@ export type X402ConfigAsset = {
   feePayer?: string;
 };
 
+/** One price of a dashboard resource: an `accepts` entry of its 402. */
+export type X402ConfigPrice = {
+  /** Atomic units. */
+  amount: string;
+  /** Token contract address or SPL mint. */
+  asset: string;
+  currencyCode: string;
+  /** CAIP-2 network of the asset. */
+  network?: Network;
+};
+
 /** A paid resource configured in the dashboard. */
 export type X402ConfigResource = {
   id: string;
@@ -43,15 +54,8 @@ export type X402ConfigResource = {
   url: string;
   /** Path of {@link url}, the route pattern (`/weather/:city`). */
   path: string;
-  price: {
-    /** Atomic units. */
-    amount: string;
-    /** Token contract address or SPL mint. */
-    asset: string;
-    currencyCode: string;
-    /** CAIP-2 network of the asset. */
-    network?: Network;
-  };
+  /** One per currency, in the order the 402 offers them; never empty. */
+  prices: X402ConfigPrice[];
   scheme: string;
   maxTimeoutSeconds: number;
   description: string | null;
@@ -211,12 +215,21 @@ export function parseX402Config(body: unknown): X402Config {
       !isObject(resource) ||
       typeof resource.method !== 'string' ||
       typeof resource.path !== 'string' ||
-      !isObject(resource.price) ||
-      typeof resource.price.amount !== 'string' ||
-      typeof resource.price.asset !== 'string' ||
       typeof resource.scheme !== 'string'
     ) {
-      throw invalid('a resource lacks `method`, `path`, `price` or `scheme`');
+      throw invalid('a resource lacks `method`, `path` or `scheme`');
+    }
+    if (!Array.isArray(resource.prices) || resource.prices.length === 0) {
+      throw invalid(
+        isObject(resource.price)
+          ? 'a resource has `price`, not `prices`: the API is older than this package'
+          : 'a resource lacks `prices`',
+      );
+    }
+    for (const price of resource.prices) {
+      if (!isObject(price) || typeof price.amount !== 'string' || typeof price.asset !== 'string') {
+        throw invalid('a price lacks `amount` or `asset`');
+      }
     }
   }
   return body as unknown as X402Config;
@@ -261,7 +274,10 @@ export type RoutesFromConfigOptions = {
    * Default: loaded when installed. `null` leaves extensions out.
    */
   extensions?: X402ExtensionsModule | null;
-  /** Called for each resource left out, with the reason. */
+  /**
+   * Called for each resource left out, and for each price left out of a
+   * resource that is still served, with the reason.
+   */
   onSkip?: (resource: X402ConfigResource, reason: string) => void;
 };
 
@@ -360,7 +376,9 @@ export function assertPayableConfig(config: X402Config): void {
 
 /**
  * Builds stock `@x402/core` routes (for `paymentMiddleware` and
- * `x402HTTPResourceServer`) from the dashboard configuration.
+ * `x402HTTPResourceServer`) from the dashboard configuration. Each route
+ * `accepts` one option per price, in the dashboard's order; a price the
+ * account cannot be paid in is left out, and a resource with none left.
  *
  * Fails closed: an account that cannot be paid throws instead of yielding
  * no routes, since no routes would serve paid endpoints for free.
@@ -381,32 +399,41 @@ export function routesFromConfig(
       skip(resource, `scheme "${resource.scheme}" is not registered`);
       continue;
     }
-    const network = resource.price.network ?? config.network;
-    const asset = config.assets.find(
-      (candidate) =>
-        (candidate.network ?? config.network) === network &&
-        sameAsset(network, candidate.address, resource.price.asset),
-    );
-    if (!asset) {
-      skip(resource, `asset ${resource.price.asset} is not accepted`);
-      continue;
-    }
-    const payTo = asset.network ? asset.payTo : config.payTo.address;
-    if (!payTo) {
-      skip(resource, `no payTo on ${network}; set one in the dashboard`);
-      continue;
-    }
+    // One `accepts` entry per price the account can be paid in.
+    const priced = resource.prices.flatMap((price) => {
+      const network = price.network ?? config.network;
+      const asset = config.assets.find(
+        (candidate) =>
+          (candidate.network ?? config.network) === network &&
+          sameAsset(network, candidate.address, price.asset),
+      );
+      if (!asset) {
+        skip(resource, `${price.currencyCode}: asset ${price.asset} is not accepted`);
+        return [];
+      }
+      const payTo = asset.network ? asset.payTo : config.payTo.address;
+      if (!payTo) {
+        skip(resource, `${price.currencyCode}: no payTo on ${network}; set one in the dashboard`);
+        return [];
+      }
+      return [{ price, network, asset, payTo }];
+    });
+    if (priced.length === 0) continue;
     const key = routeKey(resource);
     if (routes[key]) {
       skip(resource, `duplicate route "${key}"`);
       continue;
     }
 
-    const permit2Only = asset.methods.includes('permit2') && !asset.methods.includes('eip3009');
+    const isPermit2Only = (asset: X402ConfigAsset) =>
+      asset.methods.includes('permit2') && !asset.methods.includes('eip3009');
     const method = resource.method.trim().toUpperCase();
 
     const routeExtensions: Record<string, unknown> = {};
-    if (permit2Only && extensions?.declareEip2612GasSponsoringExtension) {
+    if (
+      priced.some(({ asset }) => isPermit2Only(asset)) &&
+      extensions?.declareEip2612GasSponsoringExtension
+    ) {
       // A buyer without a Permit2 approval signs an EIP-2612 permit too.
       Object.assign(routeExtensions, extensions.declareEip2612GasSponsoringExtension());
     }
@@ -425,23 +452,23 @@ export function routesFromConfig(
     }
 
     routes[key] = {
-      accepts: {
+      accepts: priced.map(({ price, network, asset, payTo }) => ({
         scheme: resource.scheme,
         network: network as Network,
         payTo,
         price: {
-          asset: resource.price.asset,
-          amount: resource.price.amount,
+          asset: price.asset,
+          amount: price.amount,
           extra: isSolanaNetwork(network)
             ? { ...(asset.feePayer ? { feePayer: asset.feePayer } : {}) }
             : {
                 name: asset.eip712?.name,
                 version: asset.eip712?.version,
-                ...(permit2Only ? { assetTransferMethod: 'permit2' } : {}),
+                ...(isPermit2Only(asset) ? { assetTransferMethod: 'permit2' } : {}),
               },
         },
         maxTimeoutSeconds: resource.maxTimeoutSeconds,
-      },
+      })),
       ...(resource.description ? { description: resource.description } : {}),
       ...(resource.mimeType ? { mimeType: resource.mimeType } : {}),
       ...(resource.discoverable && config.account.name ? { serviceName: config.account.name } : {}),

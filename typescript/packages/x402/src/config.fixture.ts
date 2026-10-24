@@ -10,7 +10,7 @@ export function resource(overrides: Partial<X402ConfigResource> = {}): X402Confi
     method: 'GET',
     url: 'https://api.example.com/weather',
     path: '/weather',
-    price: { amount: '1000', asset: USDC, currencyCode: 'USDC_BASE' },
+    prices: [{ amount: '1000', asset: USDC, currencyCode: 'USDC_BASE' }],
     scheme: 'exact',
     maxTimeoutSeconds: 300,
     description: 'Current weather',
@@ -53,4 +53,19 @@ export function x402Config(overrides: Partial<X402Config> = {}): X402Config {
     limits: { dailyGasUsd: 1 },
     ...overrides,
   };
+}
+
+/** A config whose `path` is priced in USDC and in the Permit2-only token, in that order. */
+export function twoPriceConfig(path: string): X402Config {
+  return x402Config({
+    resources: [
+      resource({
+        path,
+        prices: [
+          { amount: '1000', asset: USDC, currencyCode: 'USDC_BASE' },
+          { amount: '5', asset: PERMIT2_TOKEN, currencyCode: 'TKN_BASE' },
+        ],
+      }),
+    ],
+  });
 }

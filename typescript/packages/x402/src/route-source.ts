@@ -139,13 +139,17 @@ export function createX402RouteSource<T>(
       onSkip: (resource, reason) =>
         skipped.push(`${resource.method} ${resource.path}: ${reason}`),
     });
+    // Every option must have one: core refuses the whole server otherwise.
     for (const [key, route] of Object.entries(routes)) {
-      const accepts = Array.isArray(route.accepts) ? route.accepts[0] : route.accepts;
-      const names = isSolanaNetwork(accepts.network) ? svmNames : evmNames;
-      if (!names.includes(accepts.scheme)) {
-        skipped.push(`${key}: no ${accepts.scheme} scheme for ${accepts.network}`);
-        delete routes[key];
-      }
+      const options = Array.isArray(route.accepts) ? route.accepts : [route.accepts];
+      const servable = options.filter((option) => {
+        const names = isSolanaNetwork(option.network) ? svmNames : evmNames;
+        if (names.includes(option.scheme)) return true;
+        skipped.push(`${key}: no ${option.scheme} scheme for ${option.network}`);
+        return false;
+      });
+      if (servable.length === 0) delete routes[key];
+      else route.accepts = servable;
     }
     const key = JSON.stringify([config.network, routes]);
     if (current?.key === key) return false;
@@ -230,8 +234,8 @@ export function createX402RouteSource<T>(
 
 /**
  * A fresh `x402ResourceServer` on the facilitator, with the EVM schemes
- * registered on the account's network and the SVM schemes on each of its
- * Solana networks.
+ * registered on each of the account's EVM networks and the SVM schemes on
+ * each of its Solana networks.
  *
  * Build one per route set: `initialize()` on a shared one would clear its
  * facilitator data under requests still in flight.
@@ -243,8 +247,10 @@ export function createResourceServer(
   svmSchemes: readonly SchemeNetworkServer[],
 ): x402ResourceServer {
   const server = new x402ResourceServer(facilitator);
-  for (const scheme of schemes) {
-    server.register(config.network, scheme);
+  for (const network of evmNetworksOf(config)) {
+    for (const scheme of schemes) {
+      server.register(network, scheme);
+    }
   }
   for (const network of solanaNetworksOf(config)) {
     for (const scheme of svmSchemes) {
@@ -254,16 +260,24 @@ export function createResourceServer(
   return server;
 }
 
+/** Every network the account lists, itself or through an asset. */
+function networksOf(config: X402Config): Set<X402Config['network']> {
+  const networks = new Set<X402Config['network']>([config.network]);
+  for (const entry of config.networks ?? []) networks.add(entry.network);
+  for (const asset of config.assets) {
+    if (asset.network) networks.add(asset.network);
+  }
+  return networks;
+}
+
+/** The EVM networks an account accepts payments on; Base first. */
+export function evmNetworksOf(config: X402Config): X402Config['network'][] {
+  return [...networksOf(config)].filter((network) => !isSolanaNetwork(network));
+}
+
 /** The Solana networks an account accepts payments on. */
 export function solanaNetworksOf(config: X402Config): X402Config['network'][] {
-  const networks = new Set<X402Config['network']>();
-  for (const entry of config.networks ?? []) {
-    if (isSolanaNetwork(entry.network)) networks.add(entry.network);
-  }
-  for (const asset of config.assets) {
-    if (asset.network && isSolanaNetwork(asset.network)) networks.add(asset.network);
-  }
-  return [...networks];
+  return [...networksOf(config)].filter(isSolanaNetwork);
 }
 
 type SchemeModule = { [name: string]: new () => SchemeNetworkServer };

@@ -2,7 +2,21 @@ import type { AddressInfo } from 'node:net';
 import express, { type NextFunction, type Request, type Response } from 'express';
 import type { RoutesConfig } from '@x402/core/server';
 import { MERCHANT_API_KEY_HEADER, type X402Config } from '@cryptonly/x402';
-import { resource, x402Config } from '../../x402/src/config.fixture.js';
+import {
+  PERMIT2_TOKEN,
+  USDC,
+  resource,
+  twoPriceConfig,
+  x402Config,
+} from '../../x402/src/config.fixture.js';
+import {
+  FACILITATOR_BASE_URL,
+  configFetchOf,
+  decodeHeader,
+  facilitatorFetch,
+  paymentFor,
+  type FacilitatorCalls,
+} from '../../x402/src/facilitator.fixture.js';
 import {
   cryptonlyPaymentMiddleware,
   type CryptonlyPaymentMiddleware,
@@ -72,16 +86,22 @@ const priced = (amount: string) =>
   x402Config({
     resources: [
       resource({
-        price: { amount, asset: resource().price.asset, currencyCode: 'USDC_BASE' },
+        prices: [
+          {
+            amount,
+            asset: resource().prices[0].asset,
+            currencyCode: 'USDC_BASE',
+          },
+        ],
       }),
     ],
   });
 
 function amountOf(routes: RoutesConfig | undefined): string | undefined {
-  const route = (routes as Record<string, { accepts: { price: { amount: string } } }>)?.[
+  const route = (routes as Record<string, { accepts: { price: { amount: string } }[] }>)?.[
     'GET /weather'
   ];
-  return route?.accepts.price.amount;
+  return route?.accepts[0].price.amount;
 }
 
 describe('cryptonlyPaymentMiddleware', () => {
@@ -204,11 +224,13 @@ describe('cryptonlyPaymentMiddleware', () => {
         resource({ path: '/weather/:city', discoverable: true }),
         resource({
           path: '/report',
-          price: {
-            amount: '5',
-            asset: '0x1111111111111111111111111111111111111111',
-            currencyCode: 'TKN_BASE',
-          },
+          prices: [
+            {
+              amount: '5',
+              asset: '0x1111111111111111111111111111111111111111',
+              currencyCode: 'TKN_BASE',
+            },
+          ],
         }),
       ],
     });
@@ -258,6 +280,56 @@ describe('cryptonlyPaymentMiddleware', () => {
       expect(free.status).toBe(200);
     } finally {
       server.close();
+      globalThis.fetch = realFetch;
+      consoleError.mockRestore();
+    }
+  });
+});
+
+describe('cryptonlyPaymentMiddleware with several dashboard prices', () => {
+  it('offers every price and settles the one the buyer picked', async () => {
+    const realFetch = globalThis.fetch;
+    const calls: FacilitatorCalls = { verified: [], settled: [] };
+    // Under jest's VM the stock middleware cannot `import()` the bazaar extension.
+    const consoleError = jest.spyOn(console, 'error').mockImplementation(() => {});
+    globalThis.fetch = facilitatorFetch(calls, realFetch);
+    const middleware = cryptonlyPaymentMiddleware({
+      apiKey: 'k',
+      baseUrl: FACILITATOR_BASE_URL,
+      fetch: configFetchOf(twoPriceConfig('/weather/:city')),
+      refreshIntervalMs: 0,
+    });
+    const app = express();
+    app.use(middleware);
+    app.get('/weather/:city', (req, res) => res.json({ city: req.params.city }));
+    const server = app.listen(0, '127.0.0.1');
+    try {
+      await new Promise((resolve) => server.once('listening', resolve));
+      const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+
+      const unpaid = await realFetch(`${base}/weather/lisbon`);
+      expect(unpaid.status).toBe(402);
+      const header = unpaid.headers.get('payment-required')!;
+      expect(decodeHeader(header).accepts).toEqual([
+        expect.objectContaining({ asset: USDC, amount: '1000' }),
+        expect.objectContaining({ asset: PERMIT2_TOKEN, amount: '5' }),
+      ]);
+
+      const paid = await realFetch(`${base}/weather/lisbon`, {
+        headers: { 'payment-signature': paymentFor(header, 1) },
+      });
+      expect(paid.status).toBe(200);
+      expect(calls.settled).toEqual([
+        expect.objectContaining({
+          paymentRequirements: expect.objectContaining({
+            asset: PERMIT2_TOKEN,
+            amount: '5',
+          }),
+        }),
+      ]);
+    } finally {
+      server.close();
+      middleware.close();
       globalThis.fetch = realFetch;
       consoleError.mockRestore();
     }

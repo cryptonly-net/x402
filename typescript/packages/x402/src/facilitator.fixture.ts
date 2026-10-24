@@ -66,13 +66,13 @@ export function decodeHeader<T = Record<string, any>>(value: string): T {
   return JSON.parse(Buffer.from(value, 'base64').toString('utf8')) as T;
 }
 
-/** A `PAYMENT-SIGNATURE` header that accepts the first offered requirement. */
-export function paymentFor(paymentRequired: string): string {
+/** A `PAYMENT-SIGNATURE` header that accepts the offered requirement at `index`. */
+export function paymentFor(paymentRequired: string, index = 0): string {
   const required = decodeHeader(paymentRequired);
   const payload = {
     x402Version: 2,
     resource: required.resource,
-    accepted: required.accepts[0],
+    accepted: required.accepts[index],
     payload: { signature: '0x', authorization: { from: PAYER } },
   };
   return Buffer.from(JSON.stringify(payload)).toString('base64');

@@ -22,16 +22,22 @@ const priced = (amount: string) =>
   x402Config({
     resources: [
       resource({
-        price: { amount, asset: resource().price.asset, currencyCode: 'USDC_BASE' },
+        prices: [
+          {
+            amount,
+            asset: resource().prices[0].asset,
+            currencyCode: 'USDC_BASE',
+          },
+        ],
       }),
     ],
   });
 
 function amountOf(routes: RoutesConfig | undefined): string | undefined {
-  const route = (routes as Record<string, { accepts: { price: { amount: string } } }>)?.[
+  const route = (routes as Record<string, { accepts: { price: { amount: string } }[] }>)?.[
     'GET /weather'
   ];
-  return route?.accepts.price.amount;
+  return route?.accepts[0].price.amount;
 }
 
 const silentLogger = { info: jest.fn(), warn: jest.fn(), error: jest.fn() };
@@ -107,10 +113,18 @@ describe('createX402RouteSource', () => {
     const { source, build } = create(fetchMock);
 
     await source.ready();
-    await expect(source.refresh()).rejects.toMatchObject({ code: 'http_error' });
-    await expect(source.refresh()).rejects.toMatchObject({ code: 'network_error' });
-    await expect(source.refresh()).rejects.toMatchObject({ code: 'account_not_active' });
-    await expect(source.refresh()).rejects.toMatchObject({ code: 'pay_to_missing' });
+    await expect(source.refresh()).rejects.toMatchObject({
+      code: 'http_error',
+    });
+    await expect(source.refresh()).rejects.toMatchObject({
+      code: 'network_error',
+    });
+    await expect(source.refresh()).rejects.toMatchObject({
+      code: 'account_not_active',
+    });
+    await expect(source.refresh()).rejects.toMatchObject({
+      code: 'pay_to_missing',
+    });
 
     expect(build).toHaveBeenCalledTimes(1);
     expect(amountOf(source.current()?.value)).toBe('1000');

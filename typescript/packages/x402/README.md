@@ -58,7 +58,7 @@ app.use(
 
 ## Prices in the dashboard, another framework
 
-- `fetchX402Config()` and `routesFromConfig()` turn your dashboard prices into stock `@x402/core` routes for any x402 middleware.
+- `fetchX402Config()` and `routesFromConfig()` turn your dashboard prices into stock `@x402/core` routes for any x402 middleware. Each route `accepts` one option per currency the endpoint is priced in.
 - `createX402RouteSource()` adds what the framework packages do on top: one load, a refresh every minute, and the last good routes kept when a refresh fails.
 
 ```ts

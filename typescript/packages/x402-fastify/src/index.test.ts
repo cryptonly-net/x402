@@ -1,6 +1,12 @@
 import Fastify, { type FastifyInstance } from 'fastify';
 import type { X402Config } from '@cryptonly/x402';
-import { resource, x402Config } from '../../x402/src/config.fixture.js';
+import {
+  PERMIT2_TOKEN,
+  USDC,
+  resource,
+  twoPriceConfig,
+  x402Config,
+} from '../../x402/src/config.fixture.js';
 import {
   FACILITATOR_BASE_URL,
   decodeHeader,
@@ -15,7 +21,13 @@ const priced = (amount: string): X402Config =>
     resources: [
       resource({
         path: '/weather/:city',
-        price: { amount, asset: resource().price.asset, currencyCode: 'USDC_BASE' },
+        prices: [
+          {
+            amount,
+            asset: resource().prices[0].asset,
+            currencyCode: 'USDC_BASE',
+          },
+        ],
       }),
     ],
   });
@@ -83,7 +95,9 @@ describe('cryptonlyPayments (Fastify)', () => {
     return app!.inject({
       method: 'GET',
       url: path,
-      headers: { 'payment-signature': paymentFor(String(unpaid.headers['payment-required'])) },
+      headers: {
+        'payment-signature': paymentFor(String(unpaid.headers['payment-required'])),
+      },
     });
   }
 
@@ -103,6 +117,32 @@ describe('cryptonlyPayments (Fastify)', () => {
     const free = await app!.inject({ method: 'GET', url: '/free' });
     expect(free.statusCode).toBe(200);
     expect(free.json()).toEqual({ free: true });
+  });
+
+  it('offers every dashboard price and settles the one the buyer picked', async () => {
+    await start(configFetch(twoPriceConfig('/weather/:city')));
+
+    const unpaid = await app!.inject({ method: 'GET', url: '/weather/lisbon' });
+    const header = String(unpaid.headers['payment-required']);
+    expect(decodeHeader(header).accepts).toEqual([
+      expect.objectContaining({ asset: USDC, amount: '1000' }),
+      expect.objectContaining({ asset: PERMIT2_TOKEN, amount: '5' }),
+    ]);
+
+    const paid = await app!.inject({
+      method: 'GET',
+      url: '/weather/lisbon',
+      headers: { 'payment-signature': paymentFor(header, 1) },
+    });
+    expect(paid.statusCode).toBe(200);
+    expect(calls.settled).toEqual([
+      expect.objectContaining({
+        paymentRequirements: expect.objectContaining({
+          asset: PERMIT2_TOKEN,
+          amount: '5',
+        }),
+      }),
+    ]);
   });
 
   it('runs the handler, then settles once, when the payment verifies', async () => {

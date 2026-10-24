@@ -23,17 +23,19 @@ describe('routesFromConfig', () => {
     const routes = routesFromConfig(x402Config(), { extensions: null });
     expect(routes).toEqual({
       'GET /weather': {
-        accepts: {
-          scheme: 'exact',
-          network: 'eip155:84532',
-          payTo: PAY_TO,
-          price: {
-            asset: USDC,
-            amount: '1000',
-            extra: { name: 'USDC', version: '2' },
+        accepts: [
+          {
+            scheme: 'exact',
+            network: 'eip155:84532',
+            payTo: PAY_TO,
+            price: {
+              asset: USDC,
+              amount: '1000',
+              extra: { name: 'USDC', version: '2' },
+            },
+            maxTimeoutSeconds: 300,
           },
-          maxTimeoutSeconds: 300,
-        },
+        ],
         description: 'Current weather',
         mimeType: 'application/json',
       },
@@ -46,23 +48,25 @@ describe('routesFromConfig', () => {
         resources: [
           resource({
             path: '/report',
-            price: {
-              amount: '5',
-              asset: PERMIT2_TOKEN,
-              currencyCode: 'TKN_BASE',
-            },
+            prices: [{ amount: '5', asset: PERMIT2_TOKEN, currencyCode: 'TKN_BASE' }],
           }),
         ],
       }),
     );
     const route = routes['GET /report'];
-    expect(route.accepts).toMatchObject({
-      price: {
-        asset: PERMIT2_TOKEN,
-        amount: '5',
-        extra: { name: 'Token', version: '1', assetTransferMethod: 'permit2' },
+    expect(route.accepts).toMatchObject([
+      {
+        price: {
+          asset: PERMIT2_TOKEN,
+          amount: '5',
+          extra: {
+            name: 'Token',
+            version: '1',
+            assetTransferMethod: 'permit2',
+          },
+        },
       },
-    });
+    ]);
     expect(Object.keys(route.extensions ?? {})).toEqual(['eip2612GasSponsoring']);
   });
 
@@ -186,7 +190,7 @@ describe('routesFromConfig', () => {
           resource({
             id: 'gone',
             path: '/gone',
-            price: { amount: '1', asset: '0xdead', currencyCode: 'X' },
+            prices: [{ amount: '1', asset: '0xdead', currencyCode: 'X' }],
           }),
           resource({ id: 'dup' }),
         ],
@@ -200,7 +204,7 @@ describe('routesFromConfig', () => {
     expect(Object.keys(routes)).toEqual(['GET /weather']);
     expect(skipped.map(([r, reason]) => [r.id, reason])).toEqual([
       ['upto', 'scheme "upto" is not registered'],
-      ['gone', 'asset 0xdead is not accepted'],
+      ['gone', 'X: asset 0xdead is not accepted'],
       ['dup', 'duplicate route "GET /weather"'],
     ]);
   });
@@ -237,6 +241,42 @@ describe('fetchX402Config', () => {
       status: 403,
       message: expect.stringContaining('insufficient_scope: needs x402.verify'),
     });
+  });
+
+  it('rejects a config from an API older than this package', async () => {
+    const legacy = {
+      ...x402Config(),
+      resources: [
+        {
+          ...resource({ prices: undefined }),
+          price: { amount: '1000', asset: USDC, currencyCode: 'USDC_BASE' },
+        },
+      ],
+    };
+    const fetchMock = jest.fn(async () => jsonResponse(legacy));
+    await expect(
+      fetchX402Config({
+        apiKey: 'k',
+        fetch: fetchMock as unknown as typeof fetch,
+      }),
+    ).rejects.toMatchObject({
+      code: 'invalid_response',
+      message: expect.stringContaining('the API is older than this package'),
+    });
+  });
+
+  it.each([
+    ['no prices', { prices: [] }],
+    ['a price without an asset', { prices: [{ amount: '1', currencyCode: 'USDC_BASE' }] }],
+  ])('throws invalid_response for a resource with %s', async (_name, patch) => {
+    const body = { ...x402Config(), resources: [{ ...resource(), ...patch }] };
+    const fetchMock = jest.fn(async () => jsonResponse(body));
+    await expect(
+      fetchX402Config({
+        apiKey: 'k',
+        fetch: fetchMock as unknown as typeof fetch,
+      }),
+    ).rejects.toMatchObject({ code: 'invalid_response' });
   });
 
   it('throws invalid_response for a malformed body', async () => {
@@ -297,14 +337,15 @@ describe('routesFromConfig on Solana', () => {
     payTo,
     feePayer: FEE_PAYER,
   });
+  const solanaPrice = {
+    amount: '10000',
+    asset: MINT,
+    currencyCode: 'USDC_SOL',
+    network: SOLANA as `${string}:${string}`,
+  };
   const solanaResource = resource({
     path: '/weather/solana',
-    price: {
-      amount: '10000',
-      asset: MINT,
-      currencyCode: 'USDC_SOL',
-      network: SOLANA as `${string}:${string}`,
-    },
+    prices: [solanaPrice],
   });
 
   it('prices a Solana resource on its network, payTo and fee payer', () => {
@@ -315,24 +356,28 @@ describe('routesFromConfig on Solana', () => {
     const routes = routesFromConfig(config, { extensions: null });
     expect(routes['GET /weather/solana']).toEqual(
       expect.objectContaining({
-        accepts: expect.objectContaining({
-          network: SOLANA,
-          payTo: SOL_PAY_TO,
-          price: {
-            asset: MINT,
-            amount: '10000',
-            extra: { feePayer: FEE_PAYER },
-          },
-        }),
+        accepts: [
+          expect.objectContaining({
+            network: SOLANA,
+            payTo: SOL_PAY_TO,
+            price: {
+              asset: MINT,
+              amount: '10000',
+              extra: { feePayer: FEE_PAYER },
+            },
+          }),
+        ],
       }),
     );
     // Base routes keep the Base payTo and EIP-712 extra.
     expect(routes['GET /weather']).toEqual(
       expect.objectContaining({
-        accepts: expect.objectContaining({
-          network: 'eip155:84532',
-          payTo: PAY_TO,
-        }),
+        accepts: [
+          expect.objectContaining({
+            network: 'eip155:84532',
+            payTo: PAY_TO,
+          }),
+        ],
       }),
     );
   });
@@ -343,7 +388,7 @@ describe('routesFromConfig on Solana', () => {
       resources: [
         resource({
           path: '/x',
-          price: { ...solanaResource.price, asset: MINT.toLowerCase() },
+          prices: [{ ...solanaPrice, asset: MINT.toLowerCase() }],
         }),
       ],
     });
@@ -378,6 +423,98 @@ describe('routesFromConfig on Solana', () => {
     });
     expect(Object.keys(routesFromConfig(config, { extensions: null }))).toEqual([
       'GET /weather/solana',
+    ]);
+  });
+});
+
+describe('routesFromConfig with several prices', () => {
+  const SOLANA = 'solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1' as `${string}:${string}`;
+  const MINT = '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU';
+  const SOL_PAY_TO = '4Htxvg4qYuYFBVwG9VMywRJGKGzECgBF1ShGUuXxtsid';
+  const solanaAsset = (payTo: string | null = SOL_PAY_TO) => ({
+    symbol: 'USDC',
+    currencyCode: 'USDC_SOL',
+    address: MINT,
+    decimals: 6,
+    methods: ['spl'],
+    minAmount: '1000',
+    network: SOLANA,
+    payTo,
+    feePayer: 'FeePayer1111',
+  });
+  const prices = [
+    { amount: '20000', asset: MINT, currencyCode: 'USDC_SOL', network: SOLANA },
+    { amount: '10000', asset: USDC, currencyCode: 'USDC_BASE' },
+    { amount: '5', asset: PERMIT2_TOKEN, currencyCode: 'TKN_BASE' },
+  ];
+
+  it('accepts each price on its own network, in order', () => {
+    const routes = routesFromConfig(
+      x402Config({
+        assets: [...x402Config().assets, solanaAsset()],
+        resources: [resource({ prices })],
+      }),
+    );
+    const route = routes['GET /weather'];
+    expect(route.accepts).toEqual([
+      expect.objectContaining({
+        network: SOLANA,
+        payTo: SOL_PAY_TO,
+        price: {
+          asset: MINT,
+          amount: '20000',
+          extra: { feePayer: 'FeePayer1111' },
+        },
+      }),
+      expect.objectContaining({
+        network: 'eip155:84532',
+        payTo: PAY_TO,
+        price: {
+          asset: USDC,
+          amount: '10000',
+          extra: { name: 'USDC', version: '2' },
+        },
+      }),
+      expect.objectContaining({
+        price: {
+          asset: PERMIT2_TOKEN,
+          amount: '5',
+          extra: {
+            name: 'Token',
+            version: '1',
+            assetTransferMethod: 'permit2',
+          },
+        },
+      }),
+    ]);
+    // One Permit2-only option is enough for the route to sponsor EIP-2612.
+    expect(Object.keys(route.extensions ?? {})).toEqual(['eip2612GasSponsoring']);
+  });
+
+  it('leaves out only the prices the account cannot be paid in', () => {
+    const skipped: string[] = [];
+    const routes = routesFromConfig(
+      x402Config({
+        assets: [...x402Config().assets, solanaAsset(null)],
+        resources: [
+          resource({
+            prices: [...prices, { amount: '1', asset: '0xdead', currencyCode: 'GONE' }],
+          }),
+        ],
+      }),
+      { extensions: null, onSkip: (_resource, reason) => skipped.push(reason) },
+    );
+    expect(routes['GET /weather'].accepts).toEqual([
+      expect.objectContaining({
+        price: expect.objectContaining({ asset: USDC }),
+      }),
+      expect.objectContaining({
+        price: expect.objectContaining({ asset: PERMIT2_TOKEN }),
+      }),
+    ]);
+    expect(skipped).toEqual([
+      expect.stringMatching(/^USDC_SOL: no payTo on solana:/),
+      'GONE: asset 0xdead is not accepted',
     ]);
   });
 });

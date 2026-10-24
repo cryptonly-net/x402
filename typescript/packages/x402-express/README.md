@@ -12,7 +12,7 @@ Accept x402 payments in Express, with Cryptonly as the facilitator.
 
 ---
 
-Cryptonly verifies and settles each payment, and pays the network fee. Payments go straight to your wallet. Your prices live in the Cryptonly dashboard, so a price change needs no deploy.
+Cryptonly verifies and settles each payment, and pays the network fee. Payments go straight to your wallet. Your prices live in the Cryptonly dashboard, so a price change needs no deploy. An endpoint can have a price in each currency you accept, such as USDC on Base and on Solana: the `402` offers all of them and the buyer picks one.
 
 You need a Cryptonly API key with the `x402.verify` and `x402.settle` scopes. The [quickstart](https://docs.cryptonly.net/guides/x402/quickstart/) covers getting one.
 

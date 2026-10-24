@@ -87,10 +87,10 @@ export class X402Interceptor implements NestInterceptor {
       }
     }
 
-    const request = requestContextOf(req);
+    const request = this.x402.requestContext(requestContextOf(req));
     if (!server.httpServer.requiresPayment(request)) {
       // Fail closed: a paid handler is never served for free.
-      this.x402.warnUnpriced(request.method, request.path);
+      this.x402.warnUnpricedRequest(context.getHandler(), request.method, request.path);
       throw new ServiceUnavailableException({
         error: 'x402_route_unpriced',
         message: 'This endpoint has no price yet; retry later.',

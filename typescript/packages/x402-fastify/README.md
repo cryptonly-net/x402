@@ -69,8 +69,25 @@ The buyer is charged only when the handler succeeds. A `4xx`/`5xx` reply or a th
 | `svmSchemes` | `[new ExactSvmScheme()]` if `@x402/svm` is installed | Schemes for Solana. |
 | `logger` | `console` | Gets reload failures and skipped routes. |
 | `paywallConfig` | — | Passed to the stock `@x402/fastify` hooks. |
+| `pathPrefix` | — | Prefix a proxy strips before the request reaches the app. See [Behind a proxy](#behind-a-proxy). |
+| `publicPath` | — | Maps the app's path to the public path, for other rewrites. |
+| `publicBaseUrl` | the request's | Public origin buyers call, for `resource.url` in the `402`. |
 
 `app.cryptonlyX402` has `ready()`, `refresh()`, `routes()` and `close()`. `app.close()` stops the refresh.
+
+## Behind a proxy
+
+Dashboard prices are keyed by the public path. If a reverse proxy rewrites the path, tell the plugin how, or the paths don't match and the routes are served **for free**: the plugin only gates the paths it knows.
+
+```ts
+// The proxy serves /v1/weather from the app's /weather:
+await app.register(cryptonlyPayments, { apiKey, pathPrefix: '/v1', publicBaseUrl: 'https://api.example.com' });
+
+// The proxy adds /internal:
+await app.register(cryptonlyPayments, { apiKey, publicPath: (path) => path.replace(/^\/internal/, '') });
+```
+
+`publicBaseUrl` sets the URL buyers see in the `402`. Without it, the URL is built from the request's host and protocol. Behind a proxy, set Fastify `trustProxy` so the protocol is right.
 
 ## Solana
 

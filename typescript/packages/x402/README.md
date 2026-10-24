@@ -76,6 +76,8 @@ await source.ready(); // rejects if the prices can't load
 const httpServer = source.current()!.value; // rebuilt only when the prices change
 ```
 
+Behind a proxy that rewrites paths, build it with `createHTTPResourceServer(resourceServer, routes, createPublicRequestMapper({ pathPrefix: '/v1' }))`. It matches routes and builds `resource.url` on the public path. `publicPath` and `publicBaseUrl` are the other options.
+
 ## Sandbox
 
 Pass `sandbox: true` and use a key from your [sandbox account](https://docs.cryptonly.net/guides/sandbox-environment/). The sandbox settles on Base Sepolia (`eip155:84532`) and Solana Devnet.

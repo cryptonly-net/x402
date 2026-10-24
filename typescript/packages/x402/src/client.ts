@@ -49,7 +49,8 @@ function resolveFacilitatorUrl(config: CryptonlyFacilitatorConfig): string {
  * Cryptonly facilitator client for the x402 protocol.
  *
  * Extends `HTTPFacilitatorClient` from `@x402/core/server`. The API key goes
- * on `/verify`, `/settle`, `/supported` and the bazaar discovery calls.
+ * on `/verify`, `/settle` and `/supported`. The discovery feed is elsewhere:
+ * see `DISCOVERY_FEED_URL`.
  *
  * @example
  * ```ts
@@ -75,8 +76,6 @@ export class CryptonlyFacilitatorClient extends HTTPFacilitatorClient {
         verify: headers,
         settle: headers,
         supported: headers,
-        // `withBazaar(client).extensions.bazaar.listResources()`.
-        bazaar: headers,
       }),
     });
   }

@@ -12,16 +12,19 @@ import {
   checkIfBazaarNeeded,
   x402HTTPResourceServer,
   x402ResourceServer,
+  type HTTPRequestContext,
   type RouteConfig,
   type RoutesConfig,
 } from '@x402/core/server';
 import {
   X402_LOG_PREFIX,
+  createPublicRequestMapper,
   createResourceServer,
   createX402RouteSource,
   isSolanaNetwork,
   type CryptonlyFacilitatorClient,
   type X402Logger,
+  type X402PublicRequestMapper,
   type X402RouteSource,
 } from '@cryptonly/x402';
 import type { X402RouteMetadata } from './decorators.js';
@@ -66,8 +69,11 @@ export class X402Service implements OnApplicationBootstrap, OnModuleDestroy {
   readonly logger: X402Logger;
   private readonly source: X402RouteSource<PreparedServer>;
   private readonly inCode = new Map<object, PreparedServer>();
+  private readonly publicRequest: X402PublicRequestMapper | undefined;
   private decorated: DecoratedRoute[] | undefined;
   private readonly warned = new Set<string>();
+  /** Handlers already warned about at request time; one line each, whatever the path. */
+  private readonly warnedHandlers = new WeakSet<object>();
 
   constructor(
     @Inject(X402_MODULE_OPTIONS) private readonly options: X402ModuleOptions,
@@ -81,6 +87,7 @@ export class X402Service implements OnApplicationBootstrap, OnModuleDestroy {
       warn: (message: string) => nest.warn(message),
       error: (message: string) => nest.error(message),
     };
+    this.publicRequest = createPublicRequestMapper(options);
     this.source = createX402RouteSource({ ...options, logger: this.logger }, (routes, config) => {
       const server = this.prepared(
         createResourceServer(
@@ -167,11 +174,43 @@ export class X402Service implements OnApplicationBootstrap, OnModuleDestroy {
     return server;
   }
 
+  /** The request context on its public path and URL (see `pathPrefix`, `publicPath`). */
+  requestContext(context: HTTPRequestContext): HTTPRequestContext {
+    return this.publicRequest ? this.publicRequest(context) : context;
+  }
+
   /** Logs, once per route, that a dashboard-priced handler has no dashboard price. */
   warnUnpriced(method: string, path: string): void {
     this.warnOnce(
       `${X402_LOG_PREFIX} @X402() on ${method} ${path} has no dashboard price; ` +
         'it answers 503 until one is added',
+    );
+  }
+
+  /**
+   * {@link warnUnpriced} for a request, once per handler. Points at a dashboard
+   * path that differs only by a prefix, the mark of a proxy that rewrites paths.
+   */
+  warnUnpricedRequest(handler: object, method: string, path: string): void {
+    if (this.warnedHandlers.has(handler)) return;
+    this.warnedHandlers.add(handler);
+    const routes = this.source.current()?.routes;
+    const near = routes
+      ? Object.keys(routes)
+          .map(parseRouteKey)
+          .find(
+            (priced) =>
+              (priced.method === '*' || priced.method === method.toUpperCase()) &&
+              (endsWithSegments(priced.path, path) || endsWithSegments(path, priced.path)),
+          )
+      : undefined;
+    this.logger.warn(
+      `${X402_LOG_PREFIX} @X402() on ${method} ${path} has no dashboard price; ` +
+        'it answers 503 until one is added' +
+        (near
+          ? `. The dashboard prices ${near.method} ${near.path}: if a proxy rewrites ` +
+            'the path, set `pathPrefix` or `publicPath`'
+          : ''),
     );
   }
 

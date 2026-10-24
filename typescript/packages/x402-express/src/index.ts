@@ -1,14 +1,17 @@
 import type { NextFunction, Request, Response } from 'express';
 import type { RoutesConfig } from '@x402/core/server';
 import type { SchemeNetworkServer } from '@x402/core/types';
-import { paymentMiddleware, type PaywallConfig } from '@x402/express';
+import { paymentMiddlewareFromHTTPServer, type PaywallConfig } from '@x402/express';
 import {
   X402_CONFIG_UNAVAILABLE,
+  createHTTPResourceServer,
+  createPublicRequestMapper,
   createResourceServer,
   createX402RouteSource,
   type CryptonlyFacilitatorClient,
   type X402Config,
   type X402Logger,
+  type X402PublicRequestMapper,
   type X402RouteSource,
   type X402RouteSourceOptions,
 } from '@cryptonly/x402';
@@ -29,6 +32,8 @@ export type InnerMiddlewareContext = {
   /** Registered on each Solana network of the account. */
   svmSchemes: readonly SchemeNetworkServer[];
   paywallConfig?: PaywallConfig;
+  /** Maps requests to their public URL; set with `pathPrefix`, `publicPath` or `publicBaseUrl`. */
+  publicRequest?: X402PublicRequestMapper;
 };
 
 /**
@@ -75,11 +80,14 @@ export type CryptonlyPaymentMiddleware = ((
 /** The default {@link InnerMiddlewareFactory}: stock `@x402/express`. */
 export const stockPaymentMiddleware: InnerMiddlewareFactory = (
   routes,
-  { config, facilitator, schemes, svmSchemes, paywallConfig },
+  { config, facilitator, schemes, svmSchemes, paywallConfig, publicRequest },
 ) =>
-  paymentMiddleware(
-    routes,
-    createResourceServer(config, facilitator, schemes, svmSchemes),
+  paymentMiddlewareFromHTTPServer(
+    createHTTPResourceServer(
+      createResourceServer(config, facilitator, schemes, svmSchemes),
+      routes,
+      publicRequest,
+    ),
     paywallConfig,
   );
 
@@ -107,6 +115,7 @@ export function cryptonlyPaymentMiddleware(
   options: CryptonlyPaymentMiddlewareOptions,
 ): CryptonlyPaymentMiddleware {
   const createMiddleware = options.createMiddleware ?? stockPaymentMiddleware;
+  const publicRequest = createPublicRequestMapper(options);
   const source: X402RouteSource<ExpressMiddleware> = createX402RouteSource(
     options,
     (routes, config) =>
@@ -116,6 +125,7 @@ export function cryptonlyPaymentMiddleware(
         schemes: source.schemes,
         svmSchemes: source.svmSchemes,
         ...(options.paywallConfig ? { paywallConfig: options.paywallConfig } : {}),
+        ...(publicRequest ? { publicRequest } : {}),
       }),
   );
 

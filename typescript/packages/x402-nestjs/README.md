@@ -107,8 +107,25 @@ now() {
 | `logger` | Nest `Logger` | Gets reload failures and skipped routes. |
 | `waitForConfig` | `false` | Load the prices during bootstrap, so a bad key fails startup. When `false`, they load on the first paid request. |
 | `isGlobal` | `false` | Make the module global, so any module's controllers can use `@X402()`. |
+| `pathPrefix` | — | Prefix a proxy strips before the request reaches the app. See [Behind a proxy](#behind-a-proxy). |
+| `publicPath` | — | Maps the app's path to the public path, for other rewrites. |
+| `publicBaseUrl` | the request's | Public origin buyers call, for `resource.url` in the `402`. |
 
 Inject `X402Service` for `ready()`, `refresh()`, `routes()` and the `facilitator` client.
+
+## Behind a proxy
+
+Dashboard prices are keyed by the public path. If a reverse proxy rewrites the path, tell the module how, or the paths don't match and `@X402()` routes answer `503` (a warning names the dashboard path that nearly matched).
+
+```ts
+// The proxy serves /v1/weather from the app's /weather:
+X402Module.forRoot({ apiKey, pathPrefix: '/v1', publicBaseUrl: 'https://api.example.com' });
+
+// The proxy adds /internal:
+X402Module.forRoot({ apiKey, publicPath: (path) => path.replace(/^\/internal/, '') });
+```
+
+`publicBaseUrl` sets the URL buyers see in the `402`. Without it, the URL is built from the request's host and protocol. The global prefix is part of the app's path: with `setGlobalPrefix('api')`, `pathPrefix: '/v1'` prices `/v1/api/...`. Prices set in code (`@X402({ accepts })`) don't depend on the path.
 
 ## Not supported
 

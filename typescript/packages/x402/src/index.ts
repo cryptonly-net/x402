@@ -24,10 +24,14 @@ export type {
   X402ExtensionsModule,
 } from './config.js';
 export {
+  DISCOVERY_FEED_URL,
   MERCHANT_API_BASE_URL,
   MERCHANT_API_KEY_HEADER,
+  SANDBOX_DISCOVERY_FEED_URL,
   SANDBOX_MERCHANT_API_BASE_URL,
 } from './constants.js';
+export { createHTTPResourceServer, createPublicRequestMapper } from './public-url.js';
+export type { X402PublicRequestMapper, X402PublicUrlOptions } from './public-url.js';
 export {
   X402_CONFIG_UNAVAILABLE,
   X402_LOG_PREFIX,

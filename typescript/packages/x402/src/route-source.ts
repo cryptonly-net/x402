@@ -8,12 +8,13 @@ import {
   type X402Config,
   type X402ExtensionsModule,
 } from './config.js';
+import type { X402PublicUrlOptions } from './public-url.js';
 
 /** Logger used for refresh failures and skipped resources. */
 export type X402Logger = Pick<Console, 'info' | 'warn' | 'error'>;
 
 /** Options shared by every framework adapter. */
-export type X402RouteSourceOptions = CryptonlyFacilitatorConfig & {
+export type X402RouteSourceOptions = CryptonlyFacilitatorConfig & X402PublicUrlOptions & {
   /**
    * How often to reload `GET /x402/config`. Defaults to 60 s; `0` turns
    * refreshing off.

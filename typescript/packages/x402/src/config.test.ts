@@ -1,4 +1,5 @@
 import { validateDiscoveryExtension, withBazaar } from '@x402/extensions/bazaar';
+import { HTTPFacilitatorClient } from '@x402/core/server';
 import { CryptonlyFacilitatorClient } from './client.js';
 import {
   X402ConfigError,
@@ -7,7 +8,7 @@ import {
   routesFromConfig,
   type X402ConfigResource,
 } from './config.js';
-import { MERCHANT_API_KEY_HEADER } from './constants.js';
+import { DISCOVERY_FEED_URL, MERCHANT_API_KEY_HEADER } from './constants.js';
 import { PAY_TO, PERMIT2_TOKEN, USDC, resource, x402Config } from './config.fixture.js';
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -261,27 +262,22 @@ describe('fetchX402Config', () => {
   });
 });
 
-describe('withBazaar(CryptonlyFacilitatorClient)', () => {
+describe('withBazaar on the discovery feed', () => {
   const realFetch = globalThis.fetch;
   afterEach(() => {
     globalThis.fetch = realFetch;
   });
 
-  it('lists discovery resources with the api key', async () => {
+  it('lists discovery resources from the public feed, without a key', async () => {
     const fetchMock = jest.fn(async () =>
       jsonResponse({ x402Version: 2, items: [], resources: [] }),
     );
     globalThis.fetch = fetchMock as unknown as typeof fetch;
-    const client = withBazaar(
-      new CryptonlyFacilitatorClient({
-        apiKey: 'k',
-        baseUrl: 'http://api.test',
-      }),
-    );
+    const client = withBazaar(new HTTPFacilitatorClient({ url: DISCOVERY_FEED_URL }));
     await client.extensions.bazaar.listResources();
     const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
-    expect(url).toBe('http://api.test/x402/discovery/resources');
-    expect((init.headers as Record<string, string>)[MERCHANT_API_KEY_HEADER]).toBe('k');
+    expect(url).toBe('https://api.cryptonly.net/x402/discovery/resources');
+    expect((init.headers as Record<string, string>)[MERCHANT_API_KEY_HEADER]).toBeUndefined();
   });
 });
 

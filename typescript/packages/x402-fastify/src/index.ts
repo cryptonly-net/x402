@@ -5,10 +5,12 @@ import type {
   FastifyRequest,
 } from 'fastify';
 import fp from 'fastify-plugin';
-import { x402HTTPResourceServer, type RoutesConfig } from '@x402/core/server';
+import type { RoutesConfig, x402HTTPResourceServer } from '@x402/core/server';
 import { paymentMiddlewareFromHTTPServer, type PaywallConfig } from '@x402/fastify';
 import {
   X402_CONFIG_UNAVAILABLE,
+  createHTTPResourceServer,
+  createPublicRequestMapper,
   createResourceServer,
   createX402RouteSource,
   type X402RouteSource,
@@ -79,11 +81,13 @@ function stockHooks(httpServer: x402HTTPResourceServer, paywallConfig?: PaywallC
 }
 
 const plugin: FastifyPluginAsync<CryptonlyPaymentsOptions> = async (app, options) => {
+  const publicRequest = createPublicRequestMapper(options);
   const source: X402RouteSource<HookSet> = createX402RouteSource(options, (routes, config) =>
     stockHooks(
-      new x402HTTPResourceServer(
+      createHTTPResourceServer(
         createResourceServer(config, source.facilitator, source.schemes, source.svmSchemes),
         routes,
+        publicRequest,
       ),
       options.paywallConfig,
     ),

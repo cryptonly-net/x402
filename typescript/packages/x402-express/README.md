@@ -63,11 +63,28 @@ The buyer is charged only when the handler succeeds. A `4xx`/`5xx` response or a
 | `svmSchemes` | `[new ExactSvmScheme()]` if `@x402/svm` is installed | Schemes for Solana. |
 | `logger` | `console` | Gets reload failures and skipped routes. |
 | `paywallConfig` | — | Passed to the stock `paymentMiddleware`. |
+| `pathPrefix` | — | Prefix a proxy strips before the request reaches the app. See [Behind a proxy](#behind-a-proxy). |
+| `publicPath` | — | Maps the app's path to the public path, for other rewrites. |
+| `publicBaseUrl` | the request's | Public origin buyers call, for `resource.url` in the `402`. |
 | `createMiddleware` | stock `paymentMiddleware` | Builds the inner middleware, for example to add hooks. |
 
 The middleware also has `ready()`, `refresh()`, `routes()` and `close()`.
 
 On NestJS, use [`@cryptonly/x402-nestjs`](https://www.npmjs.com/package/@cryptonly/x402-nestjs) for decorators. This middleware also works there, applied with `consumer.apply(payments).forRoutes(...)`.
+
+## Behind a proxy
+
+Dashboard prices are keyed by the public path. If a reverse proxy rewrites the path, tell the middleware how, or the paths don't match and the routes are served **for free**: the middleware only gates the paths it knows.
+
+```ts
+// The proxy serves /v1/weather from the app's /weather:
+cryptonlyPaymentMiddleware({ apiKey, pathPrefix: '/v1', publicBaseUrl: 'https://api.example.com' });
+
+// The proxy adds /internal:
+cryptonlyPaymentMiddleware({ apiKey, publicPath: (path) => path.replace(/^\/internal/, '') });
+```
+
+`publicBaseUrl` sets the URL buyers see in the `402`. Without it, the URL is built from the request's host and protocol. Behind a proxy, set Express `trust proxy` so the protocol is right.
 
 ## Solana
 

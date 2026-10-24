@@ -37,7 +37,7 @@ describe('CryptonlyFacilitatorClient', () => {
     expect(client.url).toBe('http://localhost:8001/x402');
   });
 
-  it('sends the api key on verify, settle, supported and bazaar', async () => {
+  it('sends the api key on verify, settle and supported, not on bazaar', async () => {
     const client = new CryptonlyFacilitatorClient({ apiKey: 'k' });
     const headers = { [MERCHANT_API_KEY_HEADER]: 'k' };
     await expect(client.createAuthHeaders('verify')).resolves.toEqual({
@@ -46,8 +46,9 @@ describe('CryptonlyFacilitatorClient', () => {
     await expect(client.createAuthHeaders('supported')).resolves.toEqual({
       headers,
     });
+    // The discovery feed is public, on another host (`DISCOVERY_FEED_URL`).
     await expect(client.createAuthHeaders('bazaar')).resolves.toEqual({
-      headers,
+      headers: {},
     });
   });
 });

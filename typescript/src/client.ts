@@ -12,22 +12,44 @@ export type CryptonlyFacilitatorConfig = {
    */
   apiKey: string;
   /**
+   * Merchant API origin, with no path (as `baseUrl` in `@cryptonly/sdk`).
+   * `/x402` is appended. Takes precedence over {@link sandbox}.
+   */
+  baseUrl?: string;
+  /**
    * When `true`, uses the sandbox facilitator. Defaults to production.
+   * Ignored when {@link baseUrl} is set.
    */
   sandbox?: boolean;
 };
 
+/**
+ * Merchant API origin for a config, with no trailing slash.
+ *
+ * Same priority as `new Cryptonly(...)`: `baseUrl`, then `sandbox`, then
+ * production.
+ */
+export function resolveMerchantApiOrigin(
+  config: Pick<CryptonlyFacilitatorConfig, 'baseUrl' | 'sandbox'>,
+): string {
+  const origin =
+    typeof config.baseUrl === 'string' && config.baseUrl.length > 0
+      ? config.baseUrl
+      : config.sandbox
+        ? SANDBOX_MERCHANT_API_BASE_URL
+        : MERCHANT_API_BASE_URL;
+  return origin.replace(/\/+$/, '');
+}
+
 function resolveFacilitatorUrl(config: CryptonlyFacilitatorConfig): string {
-  const origin = config.sandbox
-    ? SANDBOX_MERCHANT_API_BASE_URL
-    : MERCHANT_API_BASE_URL;
-  return `${origin}/x402`;
+  return `${resolveMerchantApiOrigin(config)}/x402`;
 }
 
 /**
  * Cryptonly facilitator client for the x402 protocol.
  *
- * Extends `HTTPFacilitatorClient` from `@x402/core/server`.
+ * Extends `HTTPFacilitatorClient` from `@x402/core/server`. The API key goes
+ * on `/verify`, `/settle`, `/supported` and the bazaar discovery calls.
  *
  * @example
  * ```ts
@@ -53,6 +75,8 @@ export class CryptonlyFacilitatorClient extends HTTPFacilitatorClient {
         verify: headers,
         settle: headers,
         supported: headers,
+        // `withBazaar(client).extensions.bazaar.listResources()`.
+        bazaar: headers,
       }),
     });
   }

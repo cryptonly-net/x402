@@ -27,4 +27,27 @@ describe('CryptonlyFacilitatorClient', () => {
       headers: { [MERCHANT_API_KEY_HEADER]: 'k' },
     });
   });
+
+  it('uses an explicit baseUrl over sandbox, without trailing slashes', () => {
+    const client = new CryptonlyFacilitatorClient({
+      apiKey: 'k',
+      baseUrl: 'http://localhost:8001//',
+      sandbox: true,
+    });
+    expect(client.url).toBe('http://localhost:8001/x402');
+  });
+
+  it('sends the api key on verify, settle, supported and bazaar', async () => {
+    const client = new CryptonlyFacilitatorClient({ apiKey: 'k' });
+    const headers = { [MERCHANT_API_KEY_HEADER]: 'k' };
+    await expect(client.createAuthHeaders('verify')).resolves.toEqual({
+      headers,
+    });
+    await expect(client.createAuthHeaders('supported')).resolves.toEqual({
+      headers,
+    });
+    await expect(client.createAuthHeaders('bazaar')).resolves.toEqual({
+      headers,
+    });
+  });
 });

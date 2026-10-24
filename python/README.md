@@ -52,4 +52,4 @@ server = x402ResourceServerSync(facilitator)
 server.register("eip155:8453", ExactEvmServerScheme())
 ```
 
-Set `sandbox=True` to use the sandbox facilitator with testnest.
+Set `sandbox=True` to use the sandbox facilitator, which settles on Base Sepolia (`eip155:84532`).

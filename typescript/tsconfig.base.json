@@ -8,8 +8,6 @@
     "isolatedModules": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
-    "noEmit": true,
-    "rootDir": "src"
-  },
-  "include": ["src/**/*.ts"]
+    "noEmit": true
+  }
 }

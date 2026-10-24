@@ -14,7 +14,10 @@ Accept x402 payments in stablecoins on Base and Solana, with Cryptonly as the fa
 
 | Language | Package | |
 | --- | --- | --- |
-| TypeScript | [`@cryptonly/x402`](https://www.npmjs.com/package/@cryptonly/x402) | Express middleware with prices from the dashboard, and a facilitator client for stock x402 middleware. [README](typescript/README.md) |
+| TypeScript | [`@cryptonly/x402-express`](https://www.npmjs.com/package/@cryptonly/x402-express) | Express middleware with prices from the dashboard. [README](typescript/packages/x402-express/README.md) |
+| | [`@cryptonly/x402-fastify`](https://www.npmjs.com/package/@cryptonly/x402-fastify) | Fastify plugin with prices from the dashboard. [README](typescript/packages/x402-fastify/README.md) |
+| | [`@cryptonly/x402-nestjs`](https://www.npmjs.com/package/@cryptonly/x402-nestjs) | NestJS module and `@X402()` decorator, on Express or Fastify. [README](typescript/packages/x402-nestjs/README.md) |
+| | [`@cryptonly/x402`](https://www.npmjs.com/package/@cryptonly/x402) | Facilitator client for stock x402 middleware, and the shared price loader. [README](typescript/packages/x402/README.md) |
 | Python | [`cryptonly-x402`](https://pypi.org/project/cryptonly-x402/) | Facilitator client for FastAPI and Flask. [README](python/README.md) |
 
 For Go and other languages, use the stock x402 facilitator client with `https://api-merchant.cryptonly.net/x402` and your API key in the `x-tenant-api-key` header. See [prices in your code](https://docs.cryptonly.net/guides/x402/prices-in-code/).

@@ -1,0 +1,81 @@
+{
+  "name": "@cryptonly/x402-fastify",
+  "version": "0.5.0",
+  "description": "Fastify plugin for x402 payments with Cryptonly as the facilitator; prices come from the Cryptonly dashboard.",
+  "license": "MIT",
+  "private": false,
+  "type": "commonjs",
+  "sideEffects": false,
+  "engines": {
+    "node": ">=18"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cryptonly-net/x402.git",
+    "directory": "typescript/packages/x402-fastify"
+  },
+  "homepage": "https://github.com/cryptonly-net/x402/tree/main/typescript/packages/x402-fastify#readme",
+  "bugs": {
+    "url": "https://github.com/cryptonly-net/x402/issues"
+  },
+  "keywords": [
+    "cryptonly",
+    "x402",
+    "facilitator",
+    "payments",
+    "fastify",
+    "plugin"
+  ],
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "clean": "rm -rf dist",
+    "prepublishOnly": "npm run build",
+    "test": "jest",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@cryptonly/x402": "0.5.0",
+    "fastify-plugin": "^5.1.0"
+  },
+  "peerDependencies": {
+    "@x402/core": "^2",
+    "@x402/evm": "^2",
+    "@x402/fastify": "^2",
+    "@x402/extensions": "^2",
+    "@x402/svm": "^2",
+    "fastify": "^5"
+  },
+  "peerDependenciesMeta": {
+    "@x402/extensions": {
+      "optional": true
+    },
+    "@x402/svm": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@x402/core": "^2.28.0",
+    "@x402/evm": "^2.28.0",
+    "@x402/extensions": "^2.28.0",
+    "@x402/svm": "^2.28.0",
+    "@x402/fastify": "^2.28.0",
+    "fastify": "^5.12.7"
+  }
+}

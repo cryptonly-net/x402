@@ -1,15 +1,14 @@
 import type { AddressInfo } from 'node:net';
 import express, { type NextFunction, type Request, type Response } from 'express';
 import type { RoutesConfig } from '@x402/core/server';
-import type { X402Config } from './config.js';
-import { MERCHANT_API_KEY_HEADER } from './constants.js';
-import { resource, x402Config } from './config.fixture.js';
+import { MERCHANT_API_KEY_HEADER, type X402Config } from '@cryptonly/x402';
+import { resource, x402Config } from '../../x402/src/config.fixture.js';
 import {
   cryptonlyPaymentMiddleware,
   type CryptonlyPaymentMiddleware,
   type ExpressMiddleware,
   type InnerMiddlewareFactory,
-} from './express.js';
+} from './index.js';
 
 type Reply = { status: number; body: unknown } | Error;
 
@@ -119,81 +118,6 @@ describe('cryptonlyPaymentMiddleware', () => {
     expect(served.map(amountOf)).toEqual(['1000', '1000']);
   });
 
-  it('rebuilds the inner middleware only when the routes change', async () => {
-    const fetchMock = configFetch(
-      ok(priced('1000')),
-      ok(priced('1000')),
-      ok(priced('2500')),
-    );
-    const { factory, served } = recordingFactory();
-    middleware = cryptonlyPaymentMiddleware({
-      apiKey: 'k',
-      fetch: fetchMock as unknown as typeof fetch,
-      createMiddleware: factory,
-      logger: silentLogger,
-    });
-
-    await middleware.ready();
-    await expect(middleware.refresh()).resolves.toBe(false);
-    expect(factory).toHaveBeenCalledTimes(1);
-
-    await expect(middleware.refresh()).resolves.toBe(true);
-    expect(factory).toHaveBeenCalledTimes(2);
-    expect(amountOf(middleware.routes())).toBe('2500');
-
-    await call(middleware);
-    expect(served.map(amountOf)).toEqual(['2500']);
-  });
-
-  it('keeps the last good routes when a refresh fails', async () => {
-    const fetchMock = configFetch(
-      ok(priced('1000')),
-      { status: 500, body: { message: 'boom' } },
-      new Error('ECONNRESET'),
-      ok(x402Config({ account: { id: 'a', name: 'n', status: 'suspended' } })),
-      ok(x402Config({ payTo: { mode: 'wallet', address: null } })),
-    );
-    const { factory, served } = recordingFactory();
-    middleware = cryptonlyPaymentMiddleware({
-      apiKey: 'k',
-      fetch: fetchMock as unknown as typeof fetch,
-      createMiddleware: factory,
-      logger: silentLogger,
-    });
-
-    await middleware.ready();
-    await expect(middleware.refresh()).rejects.toMatchObject({ code: 'http_error' });
-    await expect(middleware.refresh()).rejects.toMatchObject({ code: 'network_error' });
-    await expect(middleware.refresh()).rejects.toMatchObject({
-      code: 'account_not_active',
-    });
-    await expect(middleware.refresh()).rejects.toMatchObject({ code: 'pay_to_missing' });
-
-    expect(factory).toHaveBeenCalledTimes(1);
-    await call(middleware);
-    expect(served.map(amountOf)).toEqual(['1000']);
-  });
-
-  it('keeps the last good routes when the inner factory throws', async () => {
-    const fetchMock = configFetch(ok(priced('1000')), ok(priced('2000')));
-    const { factory, served } = recordingFactory();
-    factory.mockImplementationOnce(factory.getMockImplementation()!);
-    factory.mockImplementationOnce(() => {
-      throw new Error('RouteConfigurationError');
-    });
-    middleware = cryptonlyPaymentMiddleware({
-      apiKey: 'k',
-      fetch: fetchMock as unknown as typeof fetch,
-      createMiddleware: factory,
-      logger: silentLogger,
-    });
-
-    await middleware.ready();
-    await expect(middleware.refresh()).rejects.toThrow('RouteConfigurationError');
-    await call(middleware);
-    expect(served.map(amountOf)).toEqual(['1000']);
-  });
-
   it('answers 503 until a first load succeeds, then serves', async () => {
     const fetchMock = configFetch(
       { status: 401, body: { message: 'invalid key' } },
@@ -216,45 +140,6 @@ describe('cryptonlyPaymentMiddleware', () => {
 
     const served = await call(middleware);
     expect(served.next).toHaveBeenCalled();
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-  });
-
-  it('does not retry a failed first load within retryAfterMs', async () => {
-    const fetchMock = configFetch(new Error('ECONNREFUSED'));
-    middleware = cryptonlyPaymentMiddleware({
-      apiKey: 'k',
-      fetch: fetchMock as unknown as typeof fetch,
-      createMiddleware: recordingFactory().factory,
-      logger: silentLogger,
-      retryAfterMs: 60_000,
-    });
-    await call(middleware);
-    const second = await call(middleware);
-    expect(second.res.statusCode).toBe(503);
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-  });
-
-  it('refreshes on an interval and stops on close()', async () => {
-    jest.useFakeTimers();
-    const fetchMock = configFetch(ok(priced('1000')), ok(priced('3000')));
-    const { factory } = recordingFactory();
-    middleware = cryptonlyPaymentMiddleware({
-      apiKey: 'k',
-      fetch: fetchMock as unknown as typeof fetch,
-      createMiddleware: factory,
-      logger: silentLogger,
-      refreshIntervalMs: 60_000,
-    });
-
-    await middleware.ready();
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-
-    await jest.advanceTimersByTimeAsync(60_000);
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-    expect(amountOf(middleware.routes())).toBe('3000');
-
-    middleware.close();
-    await jest.advanceTimersByTimeAsync(180_000);
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 

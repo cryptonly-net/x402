@@ -28,15 +28,19 @@ jobs:
           package-manager-cache: false
       - run: npm ci
       - run: npm test
-      - name: Check tag matches package version
+      - name: Check tag matches every package version
         run: |
-          version=$(node -p "require('./package.json').version")
           tag="${GITHUB_REF_NAME#typescript-v}"
-          if [ "$version" != "$tag" ]; then
-            echo "package.json version $version does not match tag $GITHUB_REF_NAME"
-            exit 1
-          fi
-      - run: npm publish --access public
+          for pkg in packages/*/package.json; do
+            version=$(node -p "require('./$pkg').version")
+            if [ "$version" != "$tag" ]; then
+              echo "$pkg version $version does not match tag $GITHUB_REF_NAME"
+              exit 1
+            fi
+          done
+      - run: npm run build
+      # In workspace order: the core package first.
+      - run: npm publish --workspaces --access public
 
   pypi:
     if: startsWith(github.ref_name, 'python-v')

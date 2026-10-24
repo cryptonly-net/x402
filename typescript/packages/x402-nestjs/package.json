@@ -1,0 +1,90 @@
+{
+  "name": "@cryptonly/x402-nestjs",
+  "version": "0.5.0",
+  "description": "NestJS module and decorators for x402 payments with Cryptonly as the facilitator. Works on the Express and Fastify platforms.",
+  "license": "MIT",
+  "private": false,
+  "type": "commonjs",
+  "sideEffects": false,
+  "engines": {
+    "node": ">=18"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cryptonly-net/x402.git",
+    "directory": "typescript/packages/x402-nestjs"
+  },
+  "homepage": "https://github.com/cryptonly-net/x402/tree/main/typescript/packages/x402-nestjs#readme",
+  "bugs": {
+    "url": "https://github.com/cryptonly-net/x402/issues"
+  },
+  "keywords": [
+    "cryptonly",
+    "x402",
+    "facilitator",
+    "payments",
+    "nestjs",
+    "nest",
+    "decorators"
+  ],
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "clean": "rm -rf dist",
+    "prepublishOnly": "npm run build",
+    "test": "jest",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@cryptonly/x402": "0.5.0"
+  },
+  "peerDependencies": {
+    "@nestjs/common": "^10 || ^11",
+    "@nestjs/core": "^10 || ^11",
+    "@x402/core": "^2",
+    "@x402/evm": "^2",
+    "@x402/extensions": "^2",
+    "@x402/svm": "^2",
+    "reflect-metadata": "^0.1.13 || ^0.2",
+    "rxjs": "^7"
+  },
+  "peerDependenciesMeta": {
+    "@x402/extensions": {
+      "optional": true
+    },
+    "@x402/svm": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@x402/core": "^2.28.0",
+    "@x402/evm": "^2.28.0",
+    "@x402/extensions": "^2.28.0",
+    "@x402/svm": "^2.28.0",
+    "@nestjs/common": "11.1.11",
+    "@nestjs/core": "11.1.11",
+    "@nestjs/platform-express": "11.1.11",
+    "@nestjs/platform-fastify": "11.1.11",
+    "@nestjs/config": "^4.0.2",
+    "class-validator": "^0.14.2",
+    "class-transformer": "^0.5.1",
+    "reflect-metadata": "0.2.2",
+    "rxjs": "7.8.2"
+  }
+}

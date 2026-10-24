@@ -7,6 +7,7 @@ export {
   X402ConfigError,
   assertPayableConfig,
   fetchX402Config,
+  isSolanaNetwork,
   loadX402Extensions,
   parseX402Config,
   routeKey,
@@ -27,3 +28,20 @@ export {
   MERCHANT_API_KEY_HEADER,
   SANDBOX_MERCHANT_API_BASE_URL,
 } from './constants.js';
+export {
+  X402_CONFIG_UNAVAILABLE,
+  X402_LOG_PREFIX,
+  createResourceServer,
+  createX402RouteSource,
+  defaultEvmSchemes,
+  defaultSvmSchemes,
+  describeError,
+  solanaNetworksOf,
+} from './route-source.js';
+export type {
+  X402Logger,
+  X402RouteSet,
+  X402RouteSetBuilder,
+  X402RouteSource,
+  X402RouteSourceOptions,
+} from './route-source.js';

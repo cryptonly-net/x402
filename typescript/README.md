@@ -4,60 +4,22 @@
 
 # Cryptonly — x402 facilitator
 
-Facilitator client for x402 payments.
+Accept x402 payments in Node.js, with Cryptonly as the facilitator.
 
-[Website](https://cryptonly.net) · [Documentation](https://docs.cryptonly.net/api-reference/openapi/operations/x402supported/) · [Contact](https://cryptonly.net/contact/)
+[Website](https://cryptonly.net) · [Documentation](https://docs.cryptonly.net/guides/x402/) · [Contact](https://cryptonly.net/contact/)
 
 </div>
 
 ---
 
-Pass it to `x402ResourceServer` from `@x402/express`, `@x402/hono`, or `@x402/next`.
+Cryptonly verifies and settles each payment, and pays the network fee. Payments go straight to your wallet. There are two ways to use this package:
 
-```bash
-npm install @cryptonly/x402
-```
+- **Prices in the dashboard.** `cryptonlyPaymentMiddleware` for Express loads your prices from the Cryptonly dashboard. A price change needs no deploy.
+- **Prices in your code.** `CryptonlyFacilitatorClient` plugs into the stock `@x402/express`, `@x402/hono` or `@x402/next` middleware.
 
-`@x402/core` ^2 is a peer dependency. Also install the framework package you use, such as `@x402/express` or `@x402/evm`.
+You need a Cryptonly API key with the `x402.verify` and `x402.settle` scopes. The [quickstart](https://docs.cryptonly.net/guides/x402/quickstart/) covers getting one.
 
-```ts
-import { CryptonlyFacilitatorClient } from '@cryptonly/x402';
-import { ExactEvmScheme } from '@x402/evm/exact/server';
-import { x402ResourceServer } from '@x402/express';
-
-const facilitator = new CryptonlyFacilitatorClient({
-  apiKey: process.env.CRYPTONLY_API_KEY!,
-});
-
-const server = new x402ResourceServer(facilitator).register(
-  'eip155:8453',
-  new ExactEvmScheme(),
-);
-```
-
-## Options
-
-| Option | Default | |
-| --- | --- | --- |
-| `apiKey` | required | Your Cryptonly API key, with the `x402.verify` and `x402.settle` scopes. Sent as `x-tenant-api-key` on every facilitator call. |
-| `sandbox` | `false` | Use the sandbox facilitator, which settles on Base Sepolia (`eip155:84532`). |
-| `baseUrl` | — | Merchant API origin, for example a local API. `/x402` is appended. Takes precedence over `sandbox`. |
-
-```ts
-// Sandbox: Base Sepolia, with test USDC from the Circle faucet.
-const facilitator = new CryptonlyFacilitatorClient({
-  apiKey: process.env.CRYPTONLY_API_KEY!,
-  sandbox: true,
-});
-const server = new x402ResourceServer(facilitator).register(
-  'eip155:84532',
-  new ExactEvmScheme(),
-);
-```
-
-## Dashboard-configured routes
-
-`@cryptonly/x402/express` reads your paid resources, prices and payout address from the Cryptonly dashboard, so you do not write routes in code. A price change in the dashboard reaches production within a minute, without a deploy.
+## Prices in the dashboard
 
 ```bash
 npm install @cryptonly/x402 @x402/core @x402/express @x402/evm express
@@ -68,72 +30,84 @@ import express from 'express';
 import { cryptonlyPaymentMiddleware } from '@cryptonly/x402/express';
 
 const app = express();
+app.get('/health', (_req, res) => res.send('ok')); // free routes go first
 
-app.get('/health', (_req, res) => res.send('ok')); // free routes first
-
-const payments = cryptonlyPaymentMiddleware({
-  apiKey: process.env.CRYPTONLY_API_KEY!, // scopes x402.verify and x402.settle
-});
+const payments = cryptonlyPaymentMiddleware({ apiKey: process.env.CRYPTONLY_API_KEY! });
 app.use(payments);
 
-// Priced in the dashboard as `GET /weather/:city`.
+// Priced in the dashboard as GET /weather/:city
 app.get('/weather/:city', (req, res) => {
   res.json({ city: req.params.city, temperatureC: 21 });
 });
 
-await payments.ready(); // optional: fail at startup if the config cannot load
+await payments.ready(); // fails at startup if the prices can't load
 app.listen(4021);
 ```
 
-How it works:
+The middleware reloads your prices every minute. It fails closed, so a paid route is never served for free:
 
-- It loads `GET /x402/config` with your API key on the first request (or on `ready()`), then every minute.
-- It turns each resource into a stock `@x402/express` route: `METHOD /path` (or just `/path` for method `*`), the price in atomic units of the chosen asset, your `payTo`, and the token's EIP-712 domain in `extra`. A Permit2-only token gets `assetTransferMethod: 'permit2'` and EIP-2612 gas sponsoring.
-- Resources marked discoverable get the bazaar discovery extension, with their input and output schemas, when `@x402/extensions` is installed.
-- It rebuilds the stock middleware only when the routes change.
-
-It fails closed, so paid endpoints are never served for free:
-
-- If the first load fails, every request through the middleware answers `503` with `Retry-After` until a load succeeds. This covers a bad key, an account that is not active, or no payout address. Mount the middleware after your free routes.
-- If a refresh fails, the last good routes stay in use and a warning is logged.
+- Until the first load succeeds, every request through it gets `503` with `Retry-After`. This happens with a bad key, an inactive account or no payout wallet.
+- If a later reload fails, it keeps the last good prices and logs a warning.
 
 | Option | Default | |
 | --- | --- | --- |
-| `apiKey` | required | Same key as for `CryptonlyFacilitatorClient`. It also needs `x402.verify` for `GET /x402/config`. |
-| `sandbox`, `baseUrl` | production | As for `CryptonlyFacilitatorClient`. |
-| `refreshIntervalMs` | `60000` | How often to reload the configuration. `0` turns refreshing off. |
-| `schemes` | `[new ExactEvmScheme()]` | Scheme servers registered on the account's Base network. Resources with another scheme are skipped. |
-| `svmSchemes` | `[new ExactSvmScheme()]` when `@x402/svm` is installed, else none | Scheme servers registered on the account's Solana network. Without one, Solana-priced resources are skipped. |
+| `apiKey` | required | Your Cryptonly API key. |
+| `sandbox` | `false` | Use the sandbox. |
+| `baseUrl` | production | Another API origin. Takes precedence over `sandbox`. |
+| `refreshIntervalMs` | `60000` | How often to reload prices. `0` turns it off. |
+| `retryAfterMs` | `5000` | After a failed first load, how long to answer `503` before the next try. |
+| `schemes` | `[new ExactEvmScheme()]` | Schemes for Base. |
+| `svmSchemes` | `[new ExactSvmScheme()]` if `@x402/svm` is installed | Schemes for Solana. |
 | `paywallConfig` | — | Passed to the stock `paymentMiddleware`. |
-| `logger` | `console` | Receives refresh failures and skipped resources. |
-| `createMiddleware` | stock `paymentMiddleware` | Builds the inner middleware for a set of routes, for example to add hooks. |
+| `logger` | `console` | Gets reload failures and skipped routes. |
+| `createMiddleware` | stock `paymentMiddleware` | Builds the inner middleware, for example to add hooks. |
 
-The returned middleware also has these methods:
+The middleware also has `ready()`, `refresh()`, `routes()` and `close()`.
 
-- `ready()`: load now.
-- `refresh()`: reload now. It resolves `true` when the routes changed.
-- `routes()`: the routes in use.
-- `close()`: stop refreshing. The refresh timer is `unref()`ed and never keeps the process alive.
+Using another framework? Build the routes with `fetchX402Config()` and `routesFromConfig()`, and pass them to its stock x402 middleware.
 
-For another framework, build the routes yourself with `fetchX402Config()` and `routesFromConfig()` from `@cryptonly/x402`, and pass them to its stock x402 middleware.
+## Prices in your code
 
-### Discovery
-
-`CryptonlyFacilitatorClient` also sends the key on bazaar calls:
-
-```ts
-import { withBazaar } from '@x402/extensions/bazaar';
-
-const client = withBazaar(new CryptonlyFacilitatorClient({ apiKey }));
-const { items } = await client.extensions.bazaar.listResources();
+```bash
+npm install @cryptonly/x402 @x402/core @x402/express @x402/evm
 ```
 
-## Networks and assets
+```ts
+import { CryptonlyFacilitatorClient } from '@cryptonly/x402';
+import { ExactEvmScheme } from '@x402/evm/exact/server';
+import { paymentMiddleware, x402ResourceServer } from '@x402/express';
 
-Production settles on Base (`eip155:8453`) and Solana (`solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp`); sandbox on Base Sepolia (`eip155:84532`) and Solana Devnet (`solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1`). On Base, USDC and EURC settle with EIP-3009, and allowlisted tokens also through Permit2. On Solana, USDC and USDT settle with the `exact` SVM scheme: the buyer signs a token transfer and Cryptonly co-signs it as fee payer (`extra.feePayer` in `GET /x402/supported`). The buyer never needs ETH or SOL. `GET /x402/supported` lists what the facilitator accepts.
+const facilitator = new CryptonlyFacilitatorClient({ apiKey: process.env.CRYPTONLY_API_KEY! });
+const server = new x402ResourceServer(facilitator).register('eip155:8453', new ExactEvmScheme());
 
-To take Solana payments with `cryptonlyPaymentMiddleware`, install `@x402/svm` and `@solana/kit` next to it and price resources in a Solana asset in the dashboard. Payouts are set up per network, so the account also needs a Solana `payTo`.
+app.use(
+  paymentMiddleware(
+    {
+      'GET /weather/:city': {
+        accepts: [{ scheme: 'exact', price: '$0.01', network: 'eip155:8453', payTo: process.env.PAY_TO! }],
+      },
+    },
+    server,
+  ),
+);
+```
 
-## Settlement results
+`CryptonlyFacilitatorClient` takes `apiKey`, `sandbox` and `baseUrl`, as above. `payTo` must be a wallet you added in the dashboard.
 
-USDC goes straight from the buyer to your `payTo` address; Cryptonly never holds it. If the transaction has not mined when `/settle` answers, the answer is `settlement_pending` with the transaction hash. List your settlements, including their final status, with `GET /x402/settlements` (scope `x402.list`) or `client.x402Settlements.list()` in `@cryptonly/sdk`.
+## Solana
+
+Install `@x402/svm` and `@solana/kit`, and add a Solana payout wallet in the dashboard. With prices in your code, register `ExactSvmScheme` from `@x402/svm/exact/server` for `solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp`.
+
+## Sandbox
+
+Pass `sandbox: true` and use a key from your [sandbox account](https://docs.cryptonly.net/guides/sandbox-environment/). The sandbox settles on Base Sepolia (`eip155:84532`) and Solana Devnet.
+
+## Learn more
+
+- [x402 quickstart](https://docs.cryptonly.net/guides/x402/quickstart/)
+- [Discovery](https://docs.cryptonly.net/guides/x402/discovery/): list your endpoints for AI agents
+- [Reference](https://docs.cryptonly.net/guides/x402/reference/): key scopes, limits and reason codes
+
+## License
+
+[MIT](https://github.com/cryptonly-net/x402/blob/main/LICENSE)

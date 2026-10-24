@@ -3,6 +3,7 @@ import express, { type NextFunction, type Request, type Response } from 'express
 import type { RoutesConfig } from '@x402/core/server';
 import { MERCHANT_API_KEY_HEADER, type X402Config } from '@cryptonly/x402';
 import {
+  BASE_SEPOLIA,
   PERMIT2_TOKEN,
   USDC,
   resource,
@@ -91,6 +92,7 @@ const priced = (amount: string) =>
             amount,
             asset: resource().prices[0].asset,
             currencyCode: 'USDC_BASE',
+            network: BASE_SEPOLIA,
           },
         ],
       }),
@@ -229,6 +231,7 @@ describe('cryptonlyPaymentMiddleware', () => {
               amount: '5',
               asset: '0x1111111111111111111111111111111111111111',
               currencyCode: 'TKN_BASE',
+              network: BASE_SEPOLIA,
             },
           ],
         }),

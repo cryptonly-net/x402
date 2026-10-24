@@ -1,6 +1,6 @@
 {
   "name": "@cryptonly/x402",
-  "version": "0.8.0",
+  "version": "0.8.1",
   "description": "Cryptonly x402 facilitator client and dashboard price loader. Framework adapters: @cryptonly/x402-express, @cryptonly/x402-fastify, @cryptonly/x402-nestjs.",
   "license": "MIT",
   "private": false,

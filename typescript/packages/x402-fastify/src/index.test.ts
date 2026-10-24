@@ -1,6 +1,7 @@
 import Fastify, { type FastifyInstance } from 'fastify';
 import type { X402Config } from '@cryptonly/x402';
 import {
+  BASE_SEPOLIA,
   PERMIT2_TOKEN,
   USDC,
   resource,
@@ -26,6 +27,7 @@ const priced = (amount: string): X402Config =>
             amount,
             asset: resource().prices[0].asset,
             currencyCode: 'USDC_BASE',
+            network: BASE_SEPOLIA,
           },
         ],
       }),

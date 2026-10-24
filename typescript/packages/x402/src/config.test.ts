@@ -9,7 +9,14 @@ import {
   type X402ConfigResource,
 } from './config.js';
 import { DISCOVERY_FEED_URL, MERCHANT_API_KEY_HEADER } from './constants.js';
-import { PAY_TO, PERMIT2_TOKEN, USDC, resource, x402Config } from './config.fixture.js';
+import {
+  BASE_SEPOLIA,
+  PAY_TO,
+  PERMIT2_TOKEN,
+  USDC,
+  resource,
+  x402Config,
+} from './config.fixture.js';
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -48,7 +55,9 @@ describe('routesFromConfig', () => {
         resources: [
           resource({
             path: '/report',
-            prices: [{ amount: '5', asset: PERMIT2_TOKEN, currencyCode: 'TKN_BASE' }],
+            prices: [
+              { amount: '5', asset: PERMIT2_TOKEN, currencyCode: 'TKN_BASE', network: BASE_SEPOLIA },
+            ],
           }),
         ],
       }),
@@ -164,7 +173,11 @@ describe('routesFromConfig', () => {
   });
 
   it('throws when the account has no payTo address', () => {
-    const config = x402Config({ payTo: { mode: 'balance', address: null } });
+    const payTo = { mode: 'balance' as const, address: null };
+    const config = x402Config({
+      payTo,
+      networks: [{ network: 'eip155:84532', payTo }],
+    });
     expect(() => routesFromConfig(config)).toThrow(X402ConfigError);
     expect(() => routesFromConfig(config)).toThrow(
       expect.objectContaining({ code: 'pay_to_missing' }),
@@ -190,7 +203,7 @@ describe('routesFromConfig', () => {
           resource({
             id: 'gone',
             path: '/gone',
-            prices: [{ amount: '1', asset: '0xdead', currencyCode: 'X' }],
+            prices: [{ amount: '1', asset: '0xdead', currencyCode: 'X', network: BASE_SEPOLIA }],
           }),
           resource({ id: 'dup' }),
         ],
@@ -243,31 +256,12 @@ describe('fetchX402Config', () => {
     });
   });
 
-  it('rejects a config from an API older than this package', async () => {
-    const legacy = {
-      ...x402Config(),
-      resources: [
-        {
-          ...resource({ prices: undefined }),
-          price: { amount: '1000', asset: USDC, currencyCode: 'USDC_BASE' },
-        },
-      ],
-    };
-    const fetchMock = jest.fn(async () => jsonResponse(legacy));
-    await expect(
-      fetchX402Config({
-        apiKey: 'k',
-        fetch: fetchMock as unknown as typeof fetch,
-      }),
-    ).rejects.toMatchObject({
-      code: 'invalid_response',
-      message: expect.stringContaining('the API is older than this package'),
-    });
-  });
-
   it.each([
     ['no prices', { prices: [] }],
-    ['a price without an asset', { prices: [{ amount: '1', currencyCode: 'USDC_BASE' }] }],
+    [
+      'a price without an asset',
+      { prices: [{ amount: '1', currencyCode: 'USDC_BASE', network: 'eip155:84532' }] },
+    ],
   ])('throws invalid_response for a resource with %s', async (_name, patch) => {
     const body = { ...x402Config(), resources: [{ ...resource(), ...patch }] };
     const fetchMock = jest.fn(async () => jsonResponse(body));
@@ -444,8 +438,8 @@ describe('routesFromConfig with several prices', () => {
   });
   const prices = [
     { amount: '20000', asset: MINT, currencyCode: 'USDC_SOL', network: SOLANA },
-    { amount: '10000', asset: USDC, currencyCode: 'USDC_BASE' },
-    { amount: '5', asset: PERMIT2_TOKEN, currencyCode: 'TKN_BASE' },
+    { amount: '10000', asset: USDC, currencyCode: 'USDC_BASE', network: BASE_SEPOLIA },
+    { amount: '5', asset: PERMIT2_TOKEN, currencyCode: 'TKN_BASE', network: BASE_SEPOLIA },
   ];
 
   it('accepts each price on its own network, in order', () => {
@@ -498,7 +492,10 @@ describe('routesFromConfig with several prices', () => {
         assets: [...x402Config().assets, solanaAsset(null)],
         resources: [
           resource({
-            prices: [...prices, { amount: '1', asset: '0xdead', currencyCode: 'GONE' }],
+            prices: [
+              ...prices,
+              { amount: '1', asset: '0xdead', currencyCode: 'GONE', network: BASE_SEPOLIA },
+            ],
           }),
         ],
       }),

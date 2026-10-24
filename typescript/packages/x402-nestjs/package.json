@@ -1,6 +1,6 @@
 {
   "name": "@cryptonly/x402-nestjs",
-  "version": "0.8.0",
+  "version": "0.8.1",
   "description": "NestJS module and decorators for x402 payments with Cryptonly as the facilitator. Works on the Express and Fastify platforms.",
   "license": "MIT",
   "private": false,
@@ -52,7 +52,7 @@
     "access": "public"
   },
   "dependencies": {
-    "@cryptonly/x402": "0.8.0"
+    "@cryptonly/x402": "0.8.1"
   },
   "peerDependencies": {
     "@nestjs/common": "^10 || ^11",

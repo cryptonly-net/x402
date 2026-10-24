@@ -1,7 +1,7 @@
 import type { RoutesConfig } from '@x402/core/server';
 import type { X402Config } from './config.js';
 import { MERCHANT_API_KEY_HEADER } from './constants.js';
-import { resource, x402Config } from './config.fixture.js';
+import { BASE_SEPOLIA, resource, x402Config } from './config.fixture.js';
 import { createX402RouteSource, type X402RouteSource } from './route-source.js';
 
 type Reply = { status: number; body: unknown } | Error;
@@ -27,6 +27,7 @@ const priced = (amount: string) =>
             amount,
             asset: resource().prices[0].asset,
             currencyCode: 'USDC_BASE',
+            network: BASE_SEPOLIA,
           },
         ],
       }),
@@ -108,7 +109,12 @@ describe('createX402RouteSource', () => {
       { status: 500, body: { message: 'boom' } },
       new Error('ECONNRESET'),
       ok(x402Config({ account: { id: 'a', name: 'n', status: 'suspended' } })),
-      ok(x402Config({ payTo: { mode: 'wallet', address: null } })),
+      ok(
+        x402Config({
+          payTo: { mode: 'wallet', address: null },
+          networks: [{ network: 'eip155:84532', payTo: { mode: 'wallet', address: null } }],
+        }),
+      ),
     );
     const { source, build } = create(fetchMock);
 

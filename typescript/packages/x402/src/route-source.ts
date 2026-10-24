@@ -263,10 +263,8 @@ export function createResourceServer(
 /** Every network the account lists, itself or through an asset. */
 function networksOf(config: X402Config): Set<X402Config['network']> {
   const networks = new Set<X402Config['network']>([config.network]);
-  for (const entry of config.networks ?? []) networks.add(entry.network);
-  for (const asset of config.assets) {
-    if (asset.network) networks.add(asset.network);
-  }
+  for (const entry of config.networks) networks.add(entry.network);
+  for (const asset of config.assets) networks.add(asset.network);
   return networks;
 }
 

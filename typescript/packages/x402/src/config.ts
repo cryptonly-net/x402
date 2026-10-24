@@ -24,10 +24,10 @@ export type X402ConfigAsset = {
   methods: string[];
   /** Smallest price, in atomic units. */
   minAmount: string;
-  /** CAIP-2 network of the asset. Older APIs omit it: {@link X402Config.network}. */
-  network?: Network;
-  /** `payTo` on the asset's network. Older APIs omit it: {@link X402Config.payTo}. */
-  payTo?: string | null;
+  /** CAIP-2 network of the asset. */
+  network: Network;
+  /** `payTo` on the asset's network; `null` until one is set up there. */
+  payTo: string | null;
   /** EVM: EIP-712 domain of the token; goes into `extra`. */
   eip712?: { name: string; version: string };
   /** Solana: the facilitator's fee payer; goes into `extra.feePayer`. */
@@ -42,7 +42,7 @@ export type X402ConfigPrice = {
   asset: string;
   currencyCode: string;
   /** CAIP-2 network of the asset. */
-  network?: Network;
+  network: Network;
 };
 
 /** A paid resource configured in the dashboard. */
@@ -76,7 +76,7 @@ export type X402Config = {
   /** `payTo` on {@link network}. `balance` (Cryptonly balance) is Base only. */
   payTo: { mode: 'wallet' | 'balance'; address: string | null };
   /** Every network the account can be paid on, with its `payTo`. */
-  networks?: Array<{
+  networks: Array<{
     network: Network;
     payTo: { mode: 'wallet' | 'balance'; address: string | null };
   }>;
@@ -198,7 +198,7 @@ function isObject(value: unknown): value is Record<string, unknown> {
 export function parseX402Config(body: unknown): X402Config {
   const invalid = (what: string) => new X402ConfigError('invalid_response', `x402 config: ${what}`);
   if (!isObject(body)) throw invalid('not an object');
-  const { account, network, payTo, assets, resources } = body;
+  const { account, network, payTo, networks, assets, resources } = body;
   if (!isObject(account) || typeof account.status !== 'string') {
     throw invalid('`account.status` missing');
   }
@@ -208,6 +208,7 @@ export function parseX402Config(body: unknown): X402Config {
   if (!isObject(payTo) || !(payTo.address === null || typeof payTo.address === 'string')) {
     throw invalid('`payTo` missing');
   }
+  if (!Array.isArray(networks)) throw invalid('`networks` is not an array');
   if (!Array.isArray(assets)) throw invalid('`assets` is not an array');
   if (!Array.isArray(resources)) throw invalid('`resources` is not an array');
   for (const resource of resources) {
@@ -220,15 +221,16 @@ export function parseX402Config(body: unknown): X402Config {
       throw invalid('a resource lacks `method`, `path` or `scheme`');
     }
     if (!Array.isArray(resource.prices) || resource.prices.length === 0) {
-      throw invalid(
-        isObject(resource.price)
-          ? 'a resource has `price`, not `prices`: the API is older than this package'
-          : 'a resource lacks `prices`',
-      );
+      throw invalid('a resource lacks `prices`');
     }
     for (const price of resource.prices) {
-      if (!isObject(price) || typeof price.amount !== 'string' || typeof price.asset !== 'string') {
-        throw invalid('a price lacks `amount` or `asset`');
+      if (
+        !isObject(price) ||
+        typeof price.amount !== 'string' ||
+        typeof price.asset !== 'string' ||
+        typeof price.network !== 'string'
+      ) {
+        throw invalid('a price lacks `amount`, `asset` or `network`');
       }
     }
   }
@@ -364,7 +366,7 @@ export function assertPayableConfig(config: X402Config): void {
     );
   }
   const payable =
-    config.payTo.address || (config.networks ?? []).some((network) => network.payTo.address);
+    config.payTo.address || config.networks.some((network) => network.payTo.address);
   if (!payable) {
     throw new X402ConfigError(
       'pay_to_missing',
@@ -401,17 +403,16 @@ export function routesFromConfig(
     }
     // One `accepts` entry per price the account can be paid in.
     const priced = resource.prices.flatMap((price) => {
-      const network = price.network ?? config.network;
+      const { network } = price;
       const asset = config.assets.find(
         (candidate) =>
-          (candidate.network ?? config.network) === network &&
-          sameAsset(network, candidate.address, price.asset),
+          candidate.network === network && sameAsset(network, candidate.address, price.asset),
       );
       if (!asset) {
         skip(resource, `${price.currencyCode}: asset ${price.asset} is not accepted`);
         return [];
       }
-      const payTo = asset.network ? asset.payTo : config.payTo.address;
+      const { payTo } = asset;
       if (!payTo) {
         skip(resource, `${price.currencyCode}: no payTo on ${network}; set one in the dashboard`);
         return [];

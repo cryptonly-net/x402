@@ -1,8 +1,10 @@
+import type { Network } from '@x402/core/types';
 import type { X402Config, X402ConfigResource } from './config.js';
 
 export const USDC = '0x036CbD53842c5426634e7929541eC2318f3dCF7e';
 export const PERMIT2_TOKEN = '0x1111111111111111111111111111111111111111';
 export const PAY_TO = '0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC';
+export const BASE_SEPOLIA: Network = 'eip155:84532';
 
 export function resource(overrides: Partial<X402ConfigResource> = {}): X402ConfigResource {
   return {
@@ -10,7 +12,7 @@ export function resource(overrides: Partial<X402ConfigResource> = {}): X402Confi
     method: 'GET',
     url: 'https://api.example.com/weather',
     path: '/weather',
-    prices: [{ amount: '1000', asset: USDC, currencyCode: 'USDC_BASE' }],
+    prices: [{ amount: '1000', asset: USDC, currencyCode: 'USDC_BASE', network: BASE_SEPOLIA }],
     scheme: 'exact',
     maxTimeoutSeconds: 300,
     description: 'Current weather',
@@ -28,6 +30,7 @@ export function x402Config(overrides: Partial<X402Config> = {}): X402Config {
     environment: 'sandbox',
     network: 'eip155:84532',
     payTo: { mode: 'wallet', address: PAY_TO },
+    networks: [{ network: BASE_SEPOLIA, payTo: { mode: 'wallet', address: PAY_TO } }],
     assets: [
       {
         symbol: 'USDC',
@@ -36,6 +39,8 @@ export function x402Config(overrides: Partial<X402Config> = {}): X402Config {
         decimals: 6,
         methods: ['eip3009', 'permit2'],
         minAmount: '1000',
+        network: BASE_SEPOLIA,
+        payTo: PAY_TO,
         eip712: { name: 'USDC', version: '2' },
       },
       {
@@ -45,6 +50,8 @@ export function x402Config(overrides: Partial<X402Config> = {}): X402Config {
         decimals: 18,
         methods: ['permit2'],
         minAmount: '1',
+        network: BASE_SEPOLIA,
+        payTo: PAY_TO,
         eip712: { name: 'Token', version: '1' },
       },
     ],
@@ -62,8 +69,8 @@ export function twoPriceConfig(path: string): X402Config {
       resource({
         path,
         prices: [
-          { amount: '1000', asset: USDC, currencyCode: 'USDC_BASE' },
-          { amount: '5', asset: PERMIT2_TOKEN, currencyCode: 'TKN_BASE' },
+          { amount: '1000', asset: USDC, currencyCode: 'USDC_BASE', network: BASE_SEPOLIA },
+          { amount: '5', asset: PERMIT2_TOKEN, currencyCode: 'TKN_BASE', network: BASE_SEPOLIA },
         ],
       }),
     ],

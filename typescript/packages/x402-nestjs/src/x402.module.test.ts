@@ -16,6 +16,7 @@ import { FastifyAdapter } from '@nestjs/platform-fastify';
 import { IsString, Matches } from 'class-validator';
 import type { X402Config } from '@cryptonly/x402';
 import {
+  BASE_SEPOLIA,
   PAY_TO,
   PERMIT2_TOKEN,
   USDC,
@@ -92,8 +93,8 @@ const config: X402Config = x402Config({
       method: 'GET',
       path: '/api/aml/screen/:address',
       prices: [
-        { amount: '1000', asset: USDC, currencyCode: 'USDC_BASE' },
-        { amount: '5', asset: PERMIT2_TOKEN, currencyCode: 'TKN_BASE' },
+        { amount: '1000', asset: USDC, currencyCode: 'USDC_BASE', network: BASE_SEPOLIA },
+        { amount: '5', asset: PERMIT2_TOKEN, currencyCode: 'TKN_BASE', network: BASE_SEPOLIA },
       ],
     }),
     resource({ method: 'POST', path: '/api/aml/screen' }),

@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.7.0
 
 - **The discovery feed moved** to `https://api.cryptonly.net/x402/discovery/resources` (sandbox: `https://sandbox-api.cryptonly.net/...`). The merchant API host no longer serves it.
   - `withBazaar(new CryptonlyFacilitatorClient(...))` no longer lists resources. Use `withBazaar(new HTTPFacilitatorClient({ url: DISCOVERY_FEED_URL }))`; the feed needs no key.

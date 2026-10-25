@@ -12,6 +12,10 @@ export type PlatformRequest = {
   path?: string;
   /** Express only. */
   originalUrl?: string;
+  /** Express: the matched route. */
+  route?: { path?: unknown };
+  /** Fastify: the matched route. */
+  routeOptions?: { url?: unknown };
 };
 
 /** What the Express response and the Fastify reply have in common. */
@@ -81,8 +85,14 @@ export function requestContextOf(req: PlatformRequest): HTTPRequestContext {
     path,
     decodedPath,
     method: req.method,
-    paymentHeader: adapter.getHeader('payment-signature') ?? adapter.getHeader('x-payment'),
+    paymentHeader: adapter.getHeader('payment-signature'),
   };
+}
+
+/** The route pattern the framework matched (`/weather/:city`), when it says. */
+export function routePatternOf(req: PlatformRequest): string | undefined {
+  const pattern = req.route?.path ?? req.routeOptions?.url;
+  return typeof pattern === 'string' && pattern.startsWith('/') ? pattern : undefined;
 }
 
 /** Sets each header on the response. */

@@ -77,3 +77,12 @@ export function paymentFor(paymentRequired: string, index = 0): string {
   };
   return Buffer.from(JSON.stringify(payload)).toString('base64');
 }
+
+/**
+ * Silences `console.error` for the stock Express and Fastify middleware:
+ * under jest's VM they cannot `import()` the bazaar extension to validate
+ * routes and log it; plain Node loads it. Restore the returned spy.
+ */
+export function muteBazaarImportLog(): jest.SpyInstance {
+  return jest.spyOn(console, 'error').mockImplementation(() => {});
+}

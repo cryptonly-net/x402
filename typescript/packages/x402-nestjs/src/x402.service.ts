@@ -9,7 +9,6 @@ import {
 import { METHOD_METADATA, PATH_METADATA } from '@nestjs/common/constants';
 import { DiscoveryService, MetadataScanner, Reflector } from '@nestjs/core';
 import {
-  checkIfBazaarNeeded,
   x402HTTPResourceServer,
   x402ResourceServer,
   type HTTPRequestContext,
@@ -22,6 +21,8 @@ import {
   createResourceServer,
   createX402RouteSource,
   isSolanaNetwork,
+  registerBazaar,
+  routeKey,
   type CryptonlyFacilitatorClient,
   type X402Logger,
   type X402PublicRequestMapper,
@@ -33,7 +34,7 @@ import { X402_MODULE_OPTIONS, X402_ROUTE_METADATA, type X402ModuleOptions } from
 /** A resource server ready to process requests for one set of routes. */
 export type PreparedServer = {
   readonly httpServer: x402HTTPResourceServer;
-  /** Syncs the facilitator's `/supported` once, and the bazaar extension. */
+  /** Syncs the facilitator's `/supported` once. */
   prepare(): Promise<void>;
   /** The payer the facilitator verified for a payment payload. */
   payerOf(payload: object): string | undefined;
@@ -41,24 +42,6 @@ export type PreparedServer = {
 
 /** A handler with `@X402()`, as `METHOD /controller/path`. */
 type DecoratedRoute = { method: string; path: string; priceInCode: boolean };
-
-type BazaarModule = {
-  bazaarResourceServerExtension: Parameters<x402ResourceServer['registerExtension']>[0];
-  validateBazaarRouteExtensions(routes: RoutesConfig): void;
-};
-let bazaarModule: BazaarModule | null | undefined;
-
-function loadBazaar(): BazaarModule | null {
-  if (bazaarModule === undefined) {
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      bazaarModule = require('@x402/extensions/bazaar') as BazaarModule;
-    } catch {
-      bazaarModule = null;
-    }
-  }
-  return bazaarModule;
-}
 
 /**
  * The dashboard routes of the account, kept fresh, and the resource servers
@@ -68,7 +51,8 @@ function loadBazaar(): BazaarModule | null {
 export class X402Service implements OnApplicationBootstrap, OnModuleDestroy {
   readonly logger: X402Logger;
   private readonly source: X402RouteSource<PreparedServer>;
-  private readonly inCode = new Map<object, PreparedServer>();
+  /** Servers of handlers priced in code, by handler and route key. */
+  private readonly inCode = new Map<object, Map<string, PreparedServer>>();
   private readonly publicRequest: X402PublicRequestMapper | undefined;
   private decorated: DecoratedRoute[] | undefined;
   private readonly warned = new Set<string>();
@@ -105,7 +89,7 @@ export class X402Service implements OnApplicationBootstrap, OnModuleDestroy {
     });
   }
 
-  /** The facilitator client, for calls of your own (`/verify`, `/settle`, discovery). */
+  /** The facilitator client, for calls of your own (`/verify`, `/settle`, `/supported`). */
   get facilitator(): CryptonlyFacilitatorClient {
     return this.source.facilitator;
   }
@@ -158,9 +142,22 @@ export class X402Service implements OnApplicationBootstrap, OnModuleDestroy {
     return this.source.current()?.value;
   }
 
-  /** The server for a handler priced in code, built on first use. */
-  inCodeServer(handler: object, route: RouteConfig): PreparedServer {
-    let server = this.inCode.get(handler);
+  /**
+   * The server for a handler priced in code, built on first use. Its route
+   * is keyed by `pattern`, the public route pattern the framework matched,
+   * so that bazaar publishes `routeTemplate` and `pathParams`. Without a
+   * pattern, or one the request does not match, the route matches any path.
+   */
+  inCodeServer(
+    handler: object,
+    route: RouteConfig,
+    request: HTTPRequestContext,
+    pattern: string | undefined,
+  ): PreparedServer {
+    const key = pattern ? routeKey({ method: request.method, path: pattern }) : '*';
+    let servers = this.inCode.get(handler);
+    if (!servers) this.inCode.set(handler, (servers = new Map()));
+    let server = servers.get(key);
     if (!server) {
       const resourceServer = new x402ResourceServer(this.source.facilitator);
       const accepts = Array.isArray(route.accepts) ? route.accepts : [route.accepts];
@@ -168,8 +165,11 @@ export class X402Service implements OnApplicationBootstrap, OnModuleDestroy {
         const schemes = isSolanaNetwork(network) ? this.source.svmSchemes : this.source.schemes;
         for (const scheme of schemes) resourceServer.register(network, scheme);
       }
-      server = this.prepared(resourceServer, route);
-      this.inCode.set(handler, server);
+      server = this.prepared(resourceServer, pattern ? { [key]: route } : route);
+      servers.set(key, server);
+    }
+    if (pattern && !server.httpServer.requiresPayment(request)) {
+      return this.inCodeServer(handler, route, request, undefined);
     }
     return server;
   }
@@ -215,6 +215,7 @@ export class X402Service implements OnApplicationBootstrap, OnModuleDestroy {
   }
 
   private prepared(resourceServer: x402ResourceServer, routes: RoutesConfig): PreparedServer {
+    registerBazaar(resourceServer, routes);
     const httpServer = new x402HTTPResourceServer(resourceServer, routes);
     const payers = new WeakMap<object, string>();
     resourceServer.onAfterVerify(async ({ paymentPayload, result }) => {
@@ -222,16 +223,7 @@ export class X402Service implements OnApplicationBootstrap, OnModuleDestroy {
     });
     let initialized: Promise<void> | undefined;
     const prepare = () => {
-      initialized ??= (async () => {
-        await httpServer.initialize();
-        if (!checkIfBazaarNeeded(routes)) return;
-        const bazaar = loadBazaar();
-        if (!bazaar) return;
-        if (!resourceServer.hasExtension('bazaar')) {
-          resourceServer.registerExtension(bazaar.bazaarResourceServerExtension);
-        }
-        bazaar.validateBazaarRouteExtensions(routes);
-      })().catch((error: unknown) => {
+      initialized ??= httpServer.initialize().catch((error: unknown) => {
         initialized = undefined;
         throw error;
       });

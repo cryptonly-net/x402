@@ -66,12 +66,10 @@ describe.each<Platform>(['express', 'fastify'])('X402Module behind a proxy on %s
   const realFetch = globalThis.fetch;
   const calls: FacilitatorCalls = { verified: [], settled: [] };
   let app: INestApplication | undefined;
-  let consoleError: jest.SpyInstance;
 
   beforeEach(() => {
     calls.verified.length = 0;
     calls.settled.length = 0;
-    consoleError = jest.spyOn(console, 'error').mockImplementation(() => {});
     globalThis.fetch = facilitatorFetch(calls, realFetch);
   });
 
@@ -79,7 +77,6 @@ describe.each<Platform>(['express', 'fastify'])('X402Module behind a proxy on %s
     await app?.close();
     app = undefined;
     globalThis.fetch = realFetch;
-    consoleError.mockRestore();
   });
 
   it.each([

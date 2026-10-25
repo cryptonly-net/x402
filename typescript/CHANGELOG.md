@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.9.0
+
+- **Service metadata in every `402`.** `resource.serviceName` is the account's listing name and `resource.iconUrl` its logo, both from the dashboard. `resource.tags` are the endpoint's tags. They go on every route, listed or not, and are left out while unset.
+  - Before this, `serviceName` was the account's internal name, and only on discoverable routes.
+  - `X402Config.account` has `serviceName` and `iconUrl` (new type `X402ConfigAccount`). `X402ConfigResource` has `tags` and no longer has `url`.
+- **The bazaar declaration of dashboard endpoints is built directly** (`dashboardDiscoveryExtension()`), without `@x402/extensions`.
+  - A discoverable endpoint with method `*` gets no declaration, since bazaar needs a method.
+  - `routesFromConfig()`'s `extensions` option is now only for EIP-2612 gas sponsoring. `loadX402Extensions()` is removed.
+- **The bazaar server extension is registered when the server is built** (`registerBazaar()`, called by `createHTTPResourceServer()`). The first `402` already carries `routeTemplate` and `pathParams`.
+- **NestJS: handlers priced in code publish their route template.** `@X402({ ... })` on `/quote/:symbol` used to declare every concrete path (`/quote/BTC`, `/quote/SOL`) as a resource of its own. The route is now keyed by the pattern the framework matched.
+- **Discovery feed:**
+  - New `fetchDiscoveryResources()` reads the public feed, with typed items (`CryptonlyDiscoveryResource`, including `extensions.cryptonly.verifiedMerchant`).
+  - `DISCOVERY_FEED_URL` and `SANDBOX_DISCOVERY_FEED_URL` are renamed to `DISCOVERY_FACILITATOR_URL` and `SANDBOX_DISCOVERY_FACILITATOR_URL`.
+- **NestJS no longer reads the v1 `X-PAYMENT` header,** only `PAYMENT-SIGNATURE`.
+
 ## 0.8.1
 
 - `X402ConfigAsset.network` and `payTo`, `X402ConfigPrice.network` and `X402Config.networks` are required, as the API always sends them. `parseX402Config()` checks `networks` and each price's `network`.

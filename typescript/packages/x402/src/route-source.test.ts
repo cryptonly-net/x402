@@ -108,7 +108,7 @@ describe('createX402RouteSource', () => {
       ok(priced('1000')),
       { status: 500, body: { message: 'boom' } },
       new Error('ECONNRESET'),
-      ok(x402Config({ account: { id: 'a', name: 'n', status: 'suspended' } })),
+      ok(x402Config({ account: { ...x402Config().account, status: 'suspended' } })),
       ok(
         x402Config({
           payTo: { mode: 'wallet', address: null },

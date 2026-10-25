@@ -46,7 +46,7 @@ describe('CryptonlyFacilitatorClient', () => {
     await expect(client.createAuthHeaders('supported')).resolves.toEqual({
       headers,
     });
-    // The discovery feed is public, on another host (`DISCOVERY_FEED_URL`).
+    // The discovery feed is public, on another host (`DISCOVERY_FACILITATOR_URL`).
     await expect(client.createAuthHeaders('bazaar')).resolves.toEqual({
       headers: {},
     });

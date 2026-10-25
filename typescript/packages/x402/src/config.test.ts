@@ -8,7 +8,8 @@ import {
   routesFromConfig,
   type X402ConfigResource,
 } from './config.js';
-import { DISCOVERY_FEED_URL, MERCHANT_API_KEY_HEADER } from './constants.js';
+import { fetchDiscoveryResources } from './bazaar.js';
+import { DISCOVERY_FACILITATOR_URL, MERCHANT_API_KEY_HEADER } from './constants.js';
 import {
   BASE_SEPOLIA,
   PAY_TO,
@@ -45,8 +46,23 @@ describe('routesFromConfig', () => {
         ],
         description: 'Current weather',
         mimeType: 'application/json',
+        serviceName: 'Weather API',
+        iconUrl: 'https://cdn.example.com/icon.png',
       },
     });
+  });
+
+  it('puts the tags on the route, and no service metadata the account lacks', () => {
+    const routes = routesFromConfig(
+      x402Config({
+        account: { ...x402Config().account, serviceName: null, iconUrl: null },
+        resources: [resource({ tags: ['weather', 'forecast'] })],
+      }),
+      { extensions: null },
+    );
+    expect(routes['GET /weather'].tags).toEqual(['weather', 'forecast']);
+    expect(routes['GET /weather']).not.toHaveProperty('serviceName');
+    expect(routes['GET /weather']).not.toHaveProperty('iconUrl');
   });
 
   it('marks a Permit2-only asset and adds EIP-2612 gas sponsoring', () => {
@@ -107,7 +123,6 @@ describe('routesFromConfig', () => {
     };
     expect(bazaar.info.input).toMatchObject({ type: 'http' });
     expect(bazaar.schema.properties.input.properties.queryParams).toMatchObject(inputSchema);
-    expect(routes['GET /weather'].serviceName).toBe('Weather API');
 
     const post = routes['POST /forecast'].extensions?.bazaar as {
       info: { input: Record<string, unknown> };
@@ -115,7 +130,8 @@ describe('routesFromConfig', () => {
     expect(post.info.input).toMatchObject({ type: 'http', bodyType: 'json' });
 
     expect(routes['GET /private'].extensions).toBeUndefined();
-    expect(routes['GET /private'].serviceName).toBeUndefined();
+    // Service metadata describes the service, listed or not.
+    expect(routes['GET /private'].serviceName).toBe('Weather API');
   });
 
   it('publishes dashboard schemas so the declaration validates against itself', () => {
@@ -153,11 +169,29 @@ describe('routesFromConfig', () => {
     expect(validateDiscoveryExtension(post as never)).toEqual({ valid: true });
   });
 
-  it('leaves extensions out when @x402/extensions is unavailable', () => {
-    const routes = routesFromConfig(x402Config({ resources: [resource({ discoverable: true })] }), {
-      extensions: null,
-    });
-    expect(routes['GET /weather'].extensions).toBeUndefined();
+  it('declares discovery without @x402/extensions, leaving EIP-2612 out', () => {
+    const routes = routesFromConfig(
+      x402Config({
+        resources: [
+          resource({
+            discoverable: true,
+            prices: [
+              { amount: '5', asset: PERMIT2_TOKEN, currencyCode: 'TKN_BASE', network: BASE_SEPOLIA },
+            ],
+          }),
+        ],
+      }),
+      { extensions: null },
+    );
+    expect(Object.keys(routes['GET /weather'].extensions ?? {})).toEqual(['bazaar']);
+  });
+
+  it('declares no discovery for method `*`, which bazaar cannot describe', () => {
+    const routes = routesFromConfig(
+      x402Config({ resources: [resource({ method: '*', discoverable: true })] }),
+      { extensions: null },
+    );
+    expect(routes['/weather'].extensions).toBeUndefined();
   });
 
   it('uses the bare path as the key for method `*`', () => {
@@ -186,7 +220,7 @@ describe('routesFromConfig', () => {
 
   it('throws when the account is not active', () => {
     const config = x402Config({
-      account: { id: 'acc-1', name: 'Weather API', status: 'suspended' },
+      account: { ...x402Config().account, status: 'suspended' },
     });
     expect(() => routesFromConfig(config)).toThrow(
       expect.objectContaining({ code: 'account_not_active' }),
@@ -304,14 +338,42 @@ describe('withBazaar on the discovery feed', () => {
 
   it('lists discovery resources from the public feed, without a key', async () => {
     const fetchMock = jest.fn(async () =>
-      jsonResponse({ x402Version: 2, items: [], resources: [] }),
+      jsonResponse({ x402Version: 2, items: [], pagination: { limit: 20, offset: 0, total: 0 } }),
     );
     globalThis.fetch = fetchMock as unknown as typeof fetch;
-    const client = withBazaar(new HTTPFacilitatorClient({ url: DISCOVERY_FEED_URL }));
+    const client = withBazaar(new HTTPFacilitatorClient({ url: DISCOVERY_FACILITATOR_URL }));
     await client.extensions.bazaar.listResources();
     const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
     expect(url).toBe('https://api.cryptonly.net/x402/discovery/resources');
     expect((init.headers as Record<string, string>)[MERCHANT_API_KEY_HEADER]).toBeUndefined();
+  });
+});
+
+describe('fetchDiscoveryResources', () => {
+  it('reads the sandbox feed with the filters given', async () => {
+    const body = { x402Version: 2, items: [], pagination: { limit: 5, offset: 0, total: 0 } };
+    const fetchMock = jest.fn(async () => jsonResponse(body));
+    await expect(
+      fetchDiscoveryResources({
+        sandbox: true,
+        network: 'eip155:84532',
+        extensions: ['bazaar'],
+        limit: 5,
+        fetch: fetchMock as unknown as typeof fetch,
+      }),
+    ).resolves.toEqual(body);
+    const [url] = fetchMock.mock.calls[0] as unknown as [string];
+    expect(url).toBe(
+      'https://sandbox-api.cryptonly.net/x402/discovery/resources' +
+        '?type=http&network=eip155%3A84532&extensions=bazaar&limit=5',
+    );
+  });
+
+  it('throws on an error status', async () => {
+    const fetchMock = jest.fn(async () => jsonResponse({}, 503));
+    await expect(
+      fetchDiscoveryResources({ fetch: fetchMock as unknown as typeof fetch }),
+    ).rejects.toThrow(/answered 503/);
   });
 });
 

@@ -7,6 +7,7 @@ import {
   type RoutesConfig,
   type x402ResourceServer,
 } from '@x402/core/server';
+import { registerBazaar } from './bazaar.js';
 
 /**
  * Where the app sits behind a reverse proxy that rewrites its URLs. Dashboard
@@ -120,12 +121,16 @@ class PublicUrlHTTPResourceServer extends x402HTTPResourceServer {
   }
 }
 
-/** An `x402HTTPResourceServer` for `routes`, on the public URL when `toPublic` is given. */
+/**
+ * An `x402HTTPResourceServer` for `routes`, on the public URL when `toPublic`
+ * is given, with the bazaar extension registered when the routes declare it.
+ */
 export function createHTTPResourceServer(
   resourceServer: x402ResourceServer,
   routes: RoutesConfig,
   toPublic?: X402PublicRequestMapper,
 ): x402HTTPResourceServer {
+  registerBazaar(resourceServer, routes);
   return toPublic
     ? new PublicUrlHTTPResourceServer(resourceServer, routes, toPublic)
     : new x402HTTPResourceServer(resourceServer, routes);

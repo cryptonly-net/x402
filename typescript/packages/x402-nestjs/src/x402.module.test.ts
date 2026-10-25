@@ -13,6 +13,7 @@ import {
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { FastifyAdapter } from '@nestjs/platform-fastify';
+import { declareDiscoveryExtension } from '@x402/extensions/bazaar';
 import { IsString, Matches } from 'class-validator';
 import type { X402Config } from '@cryptonly/x402';
 import {
@@ -80,6 +81,22 @@ class AmlController {
     return { inCode: true };
   }
 
+  @X402({
+    accepts: {
+      scheme: 'exact',
+      price: '$0.01',
+      network: 'eip155:84532',
+      payTo: PAY_TO,
+    },
+    description: 'Quote, priced in code',
+    tags: ['finance'],
+    extensions: declareDiscoveryExtension({ output: { example: { price: 1 } } }),
+  })
+  @Get('quote/:symbol')
+  quote(@Param('symbol') symbol: string) {
+    return { symbol, price: 1 };
+  }
+
   @Get('undecorated')
   undecorated() {
     return { free: true };
@@ -92,6 +109,8 @@ const config: X402Config = x402Config({
     resource({
       method: 'GET',
       path: '/api/aml/screen/:address',
+      discoverable: true,
+      tags: ['aml'],
       prices: [
         { amount: '1000', asset: USDC, currencyCode: 'USDC_BASE', network: BASE_SEPOLIA },
         { amount: '5', asset: PERMIT2_TOKEN, currencyCode: 'TKN_BASE', network: BASE_SEPOLIA },
@@ -147,11 +166,8 @@ describe.each<Platform>(['express', 'fastify'])('X402Module on %s', (platform) =
   const calls: FacilitatorCalls = { verified: [], settled: [] };
   let app: INestApplication;
   let base: string;
-  let consoleError: jest.SpyInstance;
 
   beforeAll(async () => {
-    // Under jest's VM the bazaar extension can't be loaded with `import()`.
-    consoleError = jest.spyOn(console, 'error').mockImplementation(() => {});
     globalThis.fetch = facilitatorFetch(calls, realFetch);
     warnings.length = 0;
     app = await start(AppModule, platform);
@@ -161,7 +177,6 @@ describe.each<Platform>(['express', 'fastify'])('X402Module on %s', (platform) =
   afterAll(async () => {
     await app.close();
     globalThis.fetch = realFetch;
-    consoleError.mockRestore();
   });
 
   beforeEach(() => {
@@ -193,6 +208,35 @@ describe.each<Platform>(['express', 'fastify'])('X402Module on %s', (platform) =
       payTo: PAY_TO,
     });
     expect(calls.verified).toHaveLength(0);
+  });
+
+  it('puts the service metadata and the bazaar declaration in the dashboard 402', async () => {
+    const unpaid = await realFetch(`${base}/api/aml/screen/0xabc`);
+    const required = decodeHeader(unpaid.headers.get('payment-required')!);
+    expect(required.resource).toMatchObject({
+      serviceName: 'Weather API',
+      iconUrl: 'https://cdn.example.com/icon.png',
+      tags: ['aml'],
+      description: 'Current weather',
+    });
+    expect(required.extensions.bazaar).toMatchObject({
+      routeTemplate: '/api/aml/screen/:address',
+      info: { input: { type: 'http', method: 'GET', pathParams: { address: '0xabc' } } },
+    });
+  });
+
+  it('publishes the route template of a handler priced in code', async () => {
+    const unpaid = await realFetch(`${base}/api/aml/quote/btc`);
+    expect(unpaid.status).toBe(402);
+    const required = decodeHeader(unpaid.headers.get('payment-required')!);
+    expect(required.resource).toMatchObject({
+      description: 'Quote, priced in code',
+      tags: ['finance'],
+    });
+    expect(required.extensions.bazaar).toMatchObject({
+      routeTemplate: '/api/aml/quote/:symbol',
+      info: { input: { method: 'GET', pathParams: { symbol: 'btc' } } },
+    });
   });
 
   it('runs the handler with the verified payment, then settles once', async () => {
@@ -292,7 +336,6 @@ describe('X402Module.forRootAsync', () => {
   it('takes its options from a factory', async () => {
     const calls: FacilitatorCalls = { verified: [], settled: [] };
     globalThis.fetch = facilitatorFetch(calls, realFetch);
-    const consoleError = jest.spyOn(console, 'error').mockImplementation(() => {});
 
     @Module({
       imports: [
@@ -324,7 +367,6 @@ describe('X402Module.forRootAsync', () => {
     } finally {
       await app.close();
       globalThis.fetch = realFetch;
-      consoleError.mockRestore();
     }
   });
 });

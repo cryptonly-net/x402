@@ -26,6 +26,7 @@ import {
   headerOf,
   headersOf,
   requestContextOf,
+  routePatternOf,
   setHeaders,
   type PlatformRequest,
   type PlatformResponse,
@@ -76,9 +77,18 @@ export class X402Interceptor implements NestInterceptor {
     req: PlatformRequest & { [X402_PAYMENT]?: X402VerifiedPayment },
     res: PlatformResponse,
   ): Promise<Pending | undefined> {
+    const own = requestContextOf(req);
+    const request = this.x402.requestContext(own);
     let server: PreparedServer | undefined;
     if (meta.route) {
-      server = this.x402.inCodeServer(context.getHandler(), meta.route);
+      // The pattern on the public path, mapped as the request is.
+      const pattern = routePatternOf(req);
+      server = this.x402.inCodeServer(
+        context.getHandler(),
+        meta.route,
+        request,
+        pattern && this.x402.requestContext({ ...own, path: pattern, decodedPath: pattern }).path,
+      );
     } else {
       server = await this.x402.dashboardServer();
       if (!server) {
@@ -87,7 +97,6 @@ export class X402Interceptor implements NestInterceptor {
       }
     }
 
-    const request = this.x402.requestContext(requestContextOf(req));
     if (!server.httpServer.requiresPayment(request)) {
       // Fail closed: a paid handler is never served for free.
       this.x402.warnUnpricedRequest(context.getHandler(), request.method, request.path);

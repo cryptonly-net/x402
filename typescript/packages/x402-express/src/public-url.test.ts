@@ -8,6 +8,7 @@ import {
   configFetchOf,
   decodeHeader,
   facilitatorFetch,
+  muteBazaarImportLog,
   paymentFor,
   type FacilitatorCalls,
 } from '../../x402/src/facilitator.fixture.js';
@@ -53,8 +54,7 @@ describe('cryptonlyPaymentMiddleware behind a proxy that rewrites paths', () => 
   beforeEach(() => {
     calls.verified.length = 0;
     calls.settled.length = 0;
-    // Under jest's VM the stock middleware cannot `import()` the bazaar extension.
-    consoleError = jest.spyOn(console, 'error').mockImplementation(() => {});
+    consoleError = muteBazaarImportLog();
     globalThis.fetch = facilitatorFetch(calls, realFetch);
   });
 

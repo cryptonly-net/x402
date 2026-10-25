@@ -1,7 +1,9 @@
 import type { RouteConfig } from '@x402/core/server';
 import type { Network } from '@x402/core/types';
 import { resolveMerchantApiOrigin, type CryptonlyFacilitatorConfig } from './client.js';
+import { dashboardDiscoveryExtension } from './bazaar.js';
 import { MERCHANT_API_KEY_HEADER } from './constants.js';
+import { optionalModule } from './optional.js';
 
 /**
  * `account.status` in `GET /x402/config`. Only `active` can be paid: x402 is
@@ -50,9 +52,7 @@ export type X402ConfigResource = {
   id: string;
   /** HTTP method, or `*` for any method. */
   method: string;
-  /** Full URL as entered in the dashboard; may hold `:param` segments. */
-  url: string;
-  /** Path of {@link url}, the route pattern (`/weather/:city`). */
+  /** Path of the resource URL, the route pattern (`/weather/:city`). */
   path: string;
   /** One per currency, in the order the 402 offers them; never empty. */
   prices: X402ConfigPrice[];
@@ -60,6 +60,8 @@ export type X402ConfigResource = {
   maxTimeoutSeconds: number;
   description: string | null;
   mimeType: string | null;
+  /** `resource.tags` in the 402: topical tags for discovery. */
+  tags: string[];
   /** Listed in the public discovery feed (bazaar). */
   discoverable: boolean;
   /** JSON Schema of the query (GET/HEAD/DELETE) or the JSON body. */
@@ -67,9 +69,21 @@ export type X402ConfigResource = {
   outputSchema: Record<string, unknown> | null;
 };
 
+/** The key's account, from `GET /x402/config`. */
+export type X402ConfigAccount = {
+  id: string;
+  /** Internal ledger name, for log lines. */
+  name: string;
+  /** The listing name: `resource.serviceName` in every 402. Null until set. */
+  serviceName: string | null;
+  /** `resource.iconUrl` in every 402: the account's logo. */
+  iconUrl: string | null;
+  status: X402AccountStatus;
+};
+
 /** Response of `GET /x402/config`: the x402 setup of the key's account. */
 export type X402Config = {
-  account: { id: string; name: string; status: X402AccountStatus };
+  account: X402ConfigAccount;
   environment: 'production' | 'sandbox';
   /** CAIP-2 network of Base, such as `eip155:84532`. */
   network: Network;
@@ -238,31 +252,17 @@ export function parseX402Config(body: unknown): X402Config {
 }
 
 /**
- * The parts of `@x402/extensions` that {@link routesFromConfig} uses.
- * Typed structurally so that the package stays optional.
+ * The part of `@x402/extensions` that {@link routesFromConfig} uses. Typed
+ * structurally so that the package stays optional.
  */
 export type X402ExtensionsModule = {
-  declareDiscoveryExtension(config: {
-    inputSchema?: Record<string, unknown>;
-    bodyType?: 'json';
-  }): Record<string, unknown>;
   declareEip2612GasSponsoringExtension?(): Record<string, unknown>;
 };
 
-let extensionsModule: X402ExtensionsModule | null | undefined;
-
-/** `@x402/extensions` when installed, else `null`. */
-export function loadX402Extensions(): X402ExtensionsModule | null {
-  if (extensionsModule === undefined) {
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      extensionsModule = require('@x402/extensions') as X402ExtensionsModule;
-    } catch {
-      extensionsModule = null;
-    }
-  }
-  return extensionsModule;
-}
+const loadExtensions = optionalModule<X402ExtensionsModule>(
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  () => require('@x402/extensions'),
+);
 
 /** Options for {@link routesFromConfig}. */
 export type RoutesFromConfigOptions = {
@@ -272,8 +272,9 @@ export type RoutesFromConfigOptions = {
    */
   schemes?: readonly string[];
   /**
-   * `@x402/extensions`, for the bazaar discovery and EIP-2612 extensions.
-   * Default: loaded when installed. `null` leaves extensions out.
+   * `@x402/extensions`, for the EIP-2612 gas sponsoring extension. Default:
+   * loaded when installed. `null` leaves it out. The bazaar declaration
+   * needs no package.
    */
   extensions?: X402ExtensionsModule | null;
   /**
@@ -283,62 +284,10 @@ export type RoutesFromConfigOptions = {
   onSkip?: (resource: X402ConfigResource, reason: string) => void;
 };
 
-const BODY_METHODS = new Set(['POST', 'PUT', 'PATCH']);
-
 /** Route key of a resource: `METHOD /path`, or just `/path` for method `*`. */
 export function routeKey(resource: Pick<X402ConfigResource, 'method' | 'path'>): string {
   const method = resource.method.trim().toUpperCase();
   return method === '*' || method === '' ? resource.path : `${method} ${resource.path}`;
-}
-
-/**
- * Fits a dashboard resource's declaration (`{ bazaar: { info, schema } }`) to
- * what the dashboard knows: the method and schemas, but no example values.
- *
- * - `declareDiscoveryExtension` puts an empty `queryParams` or `body` example
- *   in `info`, which fails the merchant's schema when it requires fields, so
- *   the example goes and the body stops being required.
- * - It also drops `output` unless an example is given, so the output schema
- *   is added here, under `output.example` as the package declares it.
- */
-function withDashboardSchemas(
-  method: string,
-  declared: Record<string, unknown>,
-  outputSchema: Record<string, unknown> | null,
-): Record<string, unknown> {
-  const bazaar = declared.bazaar as
-    | {
-        info?: { input?: Record<string, unknown>; output?: unknown };
-        schema?: {
-          properties?: {
-            input?: { required?: string[] };
-            output?: unknown;
-          };
-        };
-      }
-    | undefined;
-  const input = bazaar?.info?.input;
-  const properties = bazaar?.schema?.properties;
-  if (!bazaar?.info || !input || !properties) return declared;
-  // Known here; the bazaar server extension would add it per request.
-  input.method = method;
-  delete input.queryParams;
-  delete input.body;
-  if (properties.input?.required) {
-    properties.input.required = properties.input.required.filter((key) => key !== 'body');
-  }
-  if (outputSchema) {
-    bazaar.info.output = { type: 'json' };
-    properties.output = {
-      type: 'object',
-      properties: {
-        type: { type: 'string' },
-        example: { type: 'object', ...outputSchema },
-      },
-      required: ['type'],
-    };
-  }
-  return declared;
 }
 
 /** Solana CAIP-2 networks (`solana:<genesis>`). */
@@ -392,7 +341,8 @@ export function routesFromConfig(
   options: RoutesFromConfigOptions = {},
 ): Record<string, RouteConfig> {
   assertPayableConfig(config);
-  const extensions = options.extensions === undefined ? loadX402Extensions() : options.extensions;
+  const extensions = options.extensions === undefined ? loadExtensions() : options.extensions;
+  const { serviceName, iconUrl } = config.account;
   const skip = (resource: X402ConfigResource, reason: string) => options.onSkip?.(resource, reason);
 
   const routes: Record<string, RouteConfig> = {};
@@ -428,7 +378,6 @@ export function routesFromConfig(
 
     const isPermit2Only = (asset: X402ConfigAsset) =>
       asset.methods.includes('permit2') && !asset.methods.includes('eip3009');
-    const method = resource.method.trim().toUpperCase();
 
     const routeExtensions: Record<string, unknown> = {};
     if (
@@ -438,18 +387,8 @@ export function routesFromConfig(
       // A buyer without a Permit2 approval signs an EIP-2612 permit too.
       Object.assign(routeExtensions, extensions.declareEip2612GasSponsoringExtension());
     }
-    if (resource.discoverable && extensions) {
-      Object.assign(
-        routeExtensions,
-        withDashboardSchemas(
-          method,
-          extensions.declareDiscoveryExtension({
-            ...(resource.inputSchema ? { inputSchema: resource.inputSchema } : {}),
-            ...(BODY_METHODS.has(method) ? { bodyType: 'json' as const } : {}),
-          }),
-          resource.outputSchema,
-        ),
-      );
+    if (resource.discoverable) {
+      Object.assign(routeExtensions, dashboardDiscoveryExtension(resource));
     }
 
     routes[key] = {
@@ -472,7 +411,9 @@ export function routesFromConfig(
       })),
       ...(resource.description ? { description: resource.description } : {}),
       ...(resource.mimeType ? { mimeType: resource.mimeType } : {}),
-      ...(resource.discoverable && config.account.name ? { serviceName: config.account.name } : {}),
+      ...(serviceName ? { serviceName } : {}),
+      ...(resource.tags.length > 0 ? { tags: resource.tags } : {}),
+      ...(iconUrl ? { iconUrl } : {}),
       ...(Object.keys(routeExtensions).length > 0 ? { extensions: routeExtensions } : {}),
     };
   }

@@ -50,7 +50,7 @@ function resolveFacilitatorUrl(config: CryptonlyFacilitatorConfig): string {
  *
  * Extends `HTTPFacilitatorClient` from `@x402/core/server`. The API key goes
  * on `/verify`, `/settle` and `/supported`. The discovery feed is elsewhere:
- * see `DISCOVERY_FEED_URL`.
+ * see `fetchDiscoveryResources` and `DISCOVERY_FACILITATOR_URL`.
  *
  * @example
  * ```ts

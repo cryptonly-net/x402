@@ -62,11 +62,14 @@ app.use(
 - `createX402RouteSource()` adds what the framework packages do on top: one load, a refresh every minute, and the last good routes kept when a refresh fails.
 
 ```ts
-import { createResourceServer, createX402RouteSource } from '@cryptonly/x402';
-import { x402HTTPResourceServer } from '@x402/core/server';
+import {
+  createHTTPResourceServer,
+  createResourceServer,
+  createX402RouteSource,
+} from '@cryptonly/x402';
 
 const source = createX402RouteSource({ apiKey: process.env.CRYPTONLY_API_KEY! }, (routes, config) =>
-  new x402HTTPResourceServer(
+  createHTTPResourceServer(
     createResourceServer(config, source.facilitator, source.schemes, source.svmSchemes),
     routes,
   ),
@@ -77,6 +80,20 @@ const httpServer = source.current()!.value; // rebuilt only when the prices chan
 ```
 
 Behind a proxy that rewrites paths, build it with `createHTTPResourceServer(resourceServer, routes, createPublicRequestMapper({ pathPrefix: '/v1' }))`. It matches routes and builds `resource.url` on the public path. `publicPath` and `publicBaseUrl` are the other options.
+
+`createHTTPResourceServer()` also registers the bazaar extension (with `@x402/extensions` installed), so the `402` of a discoverable endpoint carries its route template.
+
+## Discovery
+
+Endpoints you list in the dashboard are in the public feed at `https://api.cryptonly.net/x402/discovery/resources`. Every `402` carries your listing name, logo and the endpoint's tags (`resource.serviceName`, `iconUrl`, `tags`).
+
+```ts
+import { fetchDiscoveryResources } from '@cryptonly/x402';
+
+const { items } = await fetchDiscoveryResources({ network: 'eip155:8453', limit: 50 });
+```
+
+Stock clients read the feed with `withBazaar(new HTTPFacilitatorClient({ url: DISCOVERY_FACILITATOR_URL }))`.
 
 ## Sandbox
 

@@ -15,6 +15,7 @@ import {
   configFetchOf,
   decodeHeader,
   facilitatorFetch,
+  muteBazaarImportLog,
   paymentFor,
   type FacilitatorCalls,
 } from '../../x402/src/facilitator.fixture.js';
@@ -201,9 +202,7 @@ describe('cryptonlyPaymentMiddleware', () => {
   });
 
   it('answers 402 for a dashboard route through the stock middleware', async () => {
-    // Under jest's VM the stock middleware cannot `import()` the bazaar
-    // extension and logs it; plain Node loads it.
-    const consoleError = jest.spyOn(console, 'error').mockImplementation(() => {});
+    const consoleError = muteBazaarImportLog();
     const realFetch = globalThis.fetch;
     // The facilitator's `/supported`; everything else goes to the network.
     globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
@@ -223,7 +222,7 @@ describe('cryptonlyPaymentMiddleware', () => {
 
     const config = x402Config({
       resources: [
-        resource({ path: '/weather/:city', discoverable: true }),
+        resource({ path: '/weather/:city', discoverable: true, tags: ['weather'] }),
         resource({
           path: '/report',
           prices: [
@@ -269,6 +268,17 @@ describe('cryptonlyPaymentMiddleware', () => {
         payTo: config.payTo.address,
         extra: { name: 'USDC', version: '2' },
       });
+      expect(required.resource).toMatchObject({
+        serviceName: 'Weather API',
+        iconUrl: 'https://cdn.example.com/icon.png',
+        tags: ['weather'],
+        description: 'Current weather',
+        mimeType: 'application/json',
+      });
+      expect(required.extensions.bazaar).toMatchObject({
+        routeTemplate: '/weather/:city',
+        info: { input: { type: 'http', method: 'GET', pathParams: { city: 'lisbon' } } },
+      });
 
       const permit2 = await realFetch(`http://127.0.0.1:${port}/report`);
       expect(permit2.status).toBe(402);
@@ -293,8 +303,7 @@ describe('cryptonlyPaymentMiddleware with several dashboard prices', () => {
   it('offers every price and settles the one the buyer picked', async () => {
     const realFetch = globalThis.fetch;
     const calls: FacilitatorCalls = { verified: [], settled: [] };
-    // Under jest's VM the stock middleware cannot `import()` the bazaar extension.
-    const consoleError = jest.spyOn(console, 'error').mockImplementation(() => {});
+    const consoleError = muteBazaarImportLog();
     globalThis.fetch = facilitatorFetch(calls, realFetch);
     const middleware = cryptonlyPaymentMiddleware({
       apiKey: 'k',

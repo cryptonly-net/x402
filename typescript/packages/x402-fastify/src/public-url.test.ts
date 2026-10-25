@@ -6,6 +6,7 @@ import {
   configFetchOf,
   decodeHeader,
   facilitatorFetch,
+  muteBazaarImportLog,
   paymentFor,
   type FacilitatorCalls,
 } from '../../x402/src/facilitator.fixture.js';
@@ -46,7 +47,7 @@ describe('cryptonlyPayments behind a proxy that rewrites paths', () => {
   beforeEach(() => {
     calls.verified.length = 0;
     calls.settled.length = 0;
-    consoleError = jest.spyOn(console, 'error').mockImplementation(() => {});
+    consoleError = muteBazaarImportLog();
     globalThis.fetch = facilitatorFetch(calls, realFetch);
   });
 

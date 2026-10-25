@@ -10,13 +10,13 @@ export function resource(overrides: Partial<X402ConfigResource> = {}): X402Confi
   return {
     id: '00000000-0000-0000-0000-000000000001',
     method: 'GET',
-    url: 'https://api.example.com/weather',
     path: '/weather',
     prices: [{ amount: '1000', asset: USDC, currencyCode: 'USDC_BASE', network: BASE_SEPOLIA }],
     scheme: 'exact',
     maxTimeoutSeconds: 300,
     description: 'Current weather',
     mimeType: 'application/json',
+    tags: [],
     discoverable: false,
     inputSchema: null,
     outputSchema: null,
@@ -26,7 +26,13 @@ export function resource(overrides: Partial<X402ConfigResource> = {}): X402Confi
 
 export function x402Config(overrides: Partial<X402Config> = {}): X402Config {
   return {
-    account: { id: 'acc-1', name: 'Weather API', status: 'active' },
+    account: {
+      id: 'acc-1',
+      name: 'Main',
+      serviceName: 'Weather API',
+      iconUrl: 'https://cdn.example.com/icon.png',
+      status: 'active',
+    },
     environment: 'sandbox',
     network: 'eip155:84532',
     payTo: { mode: 'wallet', address: PAY_TO },

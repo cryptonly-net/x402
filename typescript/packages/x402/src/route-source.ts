@@ -8,6 +8,7 @@ import {
   type X402Config,
   type X402ExtensionsModule,
 } from './config.js';
+import { optionalModule } from './optional.js';
 import type { X402PublicUrlOptions } from './public-url.js';
 
 /** Logger used for refresh failures and skipped resources. */
@@ -279,19 +280,14 @@ export function solanaNetworksOf(config: X402Config): X402Config['network'][] {
 }
 
 type SchemeModule = { [name: string]: new () => SchemeNetworkServer };
-let evmModule: SchemeModule | null | undefined;
-let svmModule: SchemeModule | null | undefined;
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const loadEvm = optionalModule<SchemeModule>(() => require('@x402/evm/exact/server'));
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const loadSvm = optionalModule<SchemeModule>(() => require('@x402/svm/exact/server'));
 
 /** `[new ExactEvmScheme()]` from `@x402/evm`. Throws when it is not installed. */
 export function defaultEvmSchemes(): SchemeNetworkServer[] {
-  if (evmModule === undefined) {
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      evmModule = require('@x402/evm/exact/server') as SchemeModule;
-    } catch {
-      evmModule = null;
-    }
-  }
+  const evmModule = loadEvm();
   if (!evmModule) {
     throw new TypeError(
       `${X402_LOG_PREFIX} @x402/evm is not installed; install it or pass \`schemes\``,
@@ -302,14 +298,7 @@ export function defaultEvmSchemes(): SchemeNetworkServer[] {
 
 /** `[new ExactSvmScheme()]` from `@x402/svm` when installed (optional peer), else none. */
 export function defaultSvmSchemes(): SchemeNetworkServer[] {
-  if (svmModule === undefined) {
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      svmModule = require('@x402/svm/exact/server') as SchemeModule;
-    } catch {
-      svmModule = null;
-    }
-  }
+  const svmModule = loadSvm();
   return svmModule ? [new svmModule.ExactSvmScheme()] : [];
 }
 

@@ -4,11 +4,20 @@ export {
 } from './client.js';
 export type { CryptonlyFacilitatorConfig } from './client.js';
 export {
+  dashboardDiscoveryExtension,
+  fetchDiscoveryResources,
+  registerBazaar,
+} from './bazaar.js';
+export type {
+  CryptonlyDiscoveryResource,
+  CryptonlyDiscoveryResponse,
+  FetchDiscoveryResourcesOptions,
+} from './bazaar.js';
+export {
   X402ConfigError,
   assertPayableConfig,
   fetchX402Config,
   isSolanaNetwork,
-  loadX402Extensions,
   parseX402Config,
   routeKey,
   routesFromConfig,
@@ -18,6 +27,7 @@ export type {
   RoutesFromConfigOptions,
   X402AccountStatus,
   X402Config,
+  X402ConfigAccount,
   X402ConfigAsset,
   X402ConfigErrorCode,
   X402ConfigPrice,
@@ -25,10 +35,10 @@ export type {
   X402ExtensionsModule,
 } from './config.js';
 export {
-  DISCOVERY_FEED_URL,
+  DISCOVERY_FACILITATOR_URL,
   MERCHANT_API_BASE_URL,
   MERCHANT_API_KEY_HEADER,
-  SANDBOX_DISCOVERY_FEED_URL,
+  SANDBOX_DISCOVERY_FACILITATOR_URL,
   SANDBOX_MERCHANT_API_BASE_URL,
 } from './constants.js';
 export { createHTTPResourceServer, createPublicRequestMapper } from './public-url.js';

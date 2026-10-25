@@ -12,6 +12,7 @@ import {
   FACILITATOR_BASE_URL,
   decodeHeader,
   facilitatorFetch,
+  muteBazaarImportLog,
   paymentFor,
   type FacilitatorCalls,
 } from '../../x402/src/facilitator.fixture.js';
@@ -57,9 +58,7 @@ describe('cryptonlyPayments (Fastify)', () => {
   beforeEach(() => {
     calls.verified.length = 0;
     calls.settled.length = 0;
-    // Under jest's VM the stock hooks cannot `import()` the bazaar extension
-    // and log it; plain Node loads it.
-    consoleError = jest.spyOn(console, 'error').mockImplementation(() => {});
+    consoleError = muteBazaarImportLog();
     globalThis.fetch = facilitatorFetch(calls, realFetch);
   });
 
@@ -119,6 +118,24 @@ describe('cryptonlyPayments (Fastify)', () => {
     const free = await app!.inject({ method: 'GET', url: '/free' });
     expect(free.statusCode).toBe(200);
     expect(free.json()).toEqual({ free: true });
+  });
+
+  it('puts the service metadata and the bazaar declaration in the 402', async () => {
+    const config = priced('1000');
+    config.resources[0] = { ...config.resources[0], discoverable: true, tags: ['weather'] };
+    await start(configFetch(config));
+
+    const unpaid = await app!.inject({ method: 'GET', url: '/weather/lisbon' });
+    const required = decodeHeader(String(unpaid.headers['payment-required']));
+    expect(required.resource).toMatchObject({
+      serviceName: 'Weather API',
+      iconUrl: 'https://cdn.example.com/icon.png',
+      tags: ['weather'],
+    });
+    expect(required.extensions.bazaar).toMatchObject({
+      routeTemplate: '/weather/:city',
+      info: { input: { type: 'http', method: 'GET', pathParams: { city: 'lisbon' } } },
+    });
   });
 
   it('offers every dashboard price and settles the one the buyer picked', async () => {

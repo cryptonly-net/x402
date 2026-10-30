@@ -1,6 +1,6 @@
 {
   "name": "@cryptonly/x402-fastify",
-  "version": "0.9.0",
+  "version": "0.9.1",
   "description": "Fastify plugin for x402 payments with Cryptonly as the facilitator; prices come from the Cryptonly dashboard.",
   "license": "MIT",
   "private": false,
@@ -14,7 +14,7 @@
     "url": "git+https://github.com/cryptonly-net/x402.git",
     "directory": "typescript/packages/x402-fastify"
   },
-  "homepage": "https://github.com/cryptonly-net/x402/tree/main/typescript/packages/x402-fastify#readme",
+  "homepage": "https://cryptonly.net/products/x402/",
   "bugs": {
     "url": "https://github.com/cryptonly-net/x402/issues"
   },
@@ -51,7 +51,7 @@
     "access": "public"
   },
   "dependencies": {
-    "@cryptonly/x402": "0.9.0",
+    "@cryptonly/x402": "0.9.1",
     "fastify-plugin": "^5.1.0"
   },
   "peerDependencies": {

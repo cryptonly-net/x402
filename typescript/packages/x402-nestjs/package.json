@@ -1,6 +1,6 @@
 {
   "name": "@cryptonly/x402-nestjs",
-  "version": "0.9.0",
+  "version": "0.9.1",
   "description": "NestJS module and decorators for x402 payments with Cryptonly as the facilitator. Works on the Express and Fastify platforms.",
   "license": "MIT",
   "private": false,
@@ -14,7 +14,7 @@
     "url": "git+https://github.com/cryptonly-net/x402.git",
     "directory": "typescript/packages/x402-nestjs"
   },
-  "homepage": "https://github.com/cryptonly-net/x402/tree/main/typescript/packages/x402-nestjs#readme",
+  "homepage": "https://cryptonly.net/products/x402/",
   "bugs": {
     "url": "https://github.com/cryptonly-net/x402/issues"
   },
@@ -52,7 +52,7 @@
     "access": "public"
   },
   "dependencies": {
-    "@cryptonly/x402": "0.9.0"
+    "@cryptonly/x402": "0.9.1"
   },
   "peerDependencies": {
     "@nestjs/common": "^10 || ^11",

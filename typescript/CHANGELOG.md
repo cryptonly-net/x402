@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.9.1
+
+- The npm homepage link of all four packages now points to https://cryptonly.net/products/x402/. The repository link still points to GitHub.
+
 ## 0.9.0
 
 - **Service metadata in every `402`.** `resource.serviceName` is the account's listing name and `resource.iconUrl` its logo, both from the dashboard. `resource.tags` are the endpoint's tags. They go on every route, listed or not, and are left out while unset.
